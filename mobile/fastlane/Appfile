@@ -1,0 +1,3 @@
+# O bundle id precisa bater com o ios.bundleIdentifier de app.config.ts.
+app_identifier(ENV['IOS_BUNDLE_ID'] || 'com.lexaclub.app')
+team_id(ENV['APPLE_TEAM_ID'])

@@ -1,0 +1,125 @@
+# Pipeline iOS do Lexa.
+#
+# Roda inteiro no runner macos-15 do GitHub Actions: nao existe Mac no fluxo de
+# desenvolvimento. As pastas ios/ e android/ nao sao versionadas — o workflow
+# gera ios/ com `expo prebuild` antes de chamar estas lanes.
+
+default_platform(:ios)
+
+APP_IDENTIFIER = ENV['IOS_BUNDLE_ID'] || 'com.lexaclub.app'
+
+platform :ios do
+  # Chave da App Store Connect API, montada a partir do .p8 em base64 guardado
+  # nos secrets. Evita 2FA de Apple ID no CI.
+  def asc_key
+    app_store_connect_api_key(
+      key_id: ENV.fetch('ASC_KEY_ID'),
+      issuer_id: ENV.fetch('ASC_ISSUER_ID'),
+      key_content: ENV.fetch('ASC_KEY_P8'),
+      is_key_content_base64: true,
+      in_house: false
+    )
+  end
+
+  desc 'Bootstrap: cria certificado e provisioning profile e guarda no repo de certs.'
+  desc 'Rodar UMA vez, pelo workflow mobile-ios-credentials.yml (workflow_dispatch).'
+  lane :certificates do
+    setup_ci
+    match(
+      type: 'appstore',
+      app_identifier: APP_IDENTIFIER,
+      api_key: asc_key,
+      readonly: false
+    )
+  end
+
+  desc 'Build assinado, sem upload. Usado para validar prebuild + pods + signing barato.'
+  lane :build_only do
+    setup_ci
+    match(
+      type: 'appstore',
+      app_identifier: APP_IDENTIFIER,
+      api_key: asc_key,
+      readonly: true
+    )
+    disable_automatic_code_signing(path: 'ios/Lexa.xcodeproj')
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: 'ios/Lexa.xcodeproj',
+      team_id: ENV['APPLE_TEAM_ID'],
+      bundle_identifier: APP_IDENTIFIER,
+      profile_name: "match AppStore #{APP_IDENTIFIER}",
+      code_sign_identity: 'Apple Distribution'
+    )
+    build_app(
+      workspace: 'ios/Lexa.xcworkspace',
+      scheme: 'Lexa',
+      export_method: 'app-store',
+      output_directory: 'build',
+      skip_package_dependencies_resolution: true,
+      export_options: {
+        method: 'app-store',
+        provisioningProfiles: {
+          APP_IDENTIFIER => "match AppStore #{APP_IDENTIFIER}"
+        }
+      },
+      xcargs: "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']} CODE_SIGN_IDENTITY=\"Apple Distribution\" PROVISIONING_PROFILE_SPECIFIER=\"match AppStore #{APP_IDENTIFIER}\"",
+      clean: true
+    )
+  end
+
+  desc 'Build e envio para o TestFlight.'
+  lane :beta do
+    setup_ci
+    key = asc_key
+
+    match(
+      type: 'appstore',
+      app_identifier: APP_IDENTIFIER,
+      api_key: key,
+      readonly: true
+    )
+
+    disable_automatic_code_signing(path: 'ios/Lexa.xcodeproj')
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: 'ios/Lexa.xcodeproj',
+      team_id: ENV['APPLE_TEAM_ID'],
+      bundle_identifier: APP_IDENTIFIER,
+      profile_name: "match AppStore #{APP_IDENTIFIER}",
+      code_sign_identity: 'Apple Distribution'
+    )
+
+    # O numero de build precisa ser sempre maior que o ultimo no TestFlight; o
+    # projeto gerado pelo prebuild sempre nasce em 1.
+    increment_build_number(
+      xcodeproj: 'ios/Lexa.xcodeproj',
+      build_number: latest_testflight_build_number(
+        app_identifier: APP_IDENTIFIER,
+        api_key: key,
+        initial_build_number: 0
+      ) + 1
+    )
+
+    build_app(
+      workspace: 'ios/Lexa.xcworkspace',
+      scheme: 'Lexa',
+      export_method: 'app-store',
+      output_directory: 'build',
+      skip_package_dependencies_resolution: true,
+      export_options: {
+        method: 'app-store',
+        provisioningProfiles: {
+          APP_IDENTIFIER => "match AppStore #{APP_IDENTIFIER}"
+        }
+      },
+      xcargs: "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']} CODE_SIGN_IDENTITY=\"Apple Distribution\" PROVISIONING_PROFILE_SPECIFIER=\"match AppStore #{APP_IDENTIFIER}\"",
+      clean: true
+    )
+
+    upload_to_testflight(
+      api_key: key,
+      skip_waiting_for_build_processing: true
+    )
+  end
+end

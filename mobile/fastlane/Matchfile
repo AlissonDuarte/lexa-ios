@@ -1,0 +1,6 @@
+# Repo git PRIVADO e separado onde o match guarda certificados e provisioning
+# profiles cifrados. Nunca apontar para o repo do Lexa.
+git_url(ENV['MATCH_GIT_URL'])
+storage_mode('git')
+type('appstore')
+app_identifier([ENV['IOS_BUNDLE_ID'] || 'com.lexaclub.app'])

@@ -1,0 +1,109 @@
+name: iOS — build e TestFlight
+
+# Runner macOS em repo privado consome minutos com multiplicador 10x: os 2.000
+# min/mes gratuitos viram ~200 min de macOS, e um build leva 15-25 min. Por isso
+# este workflow NUNCA roda em push comum — so manualmente ou por tag.
+on:
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: 'Lane do fastlane'
+        required: true
+        default: build_only
+        type: choice
+        options:
+          - build_only
+          - beta
+  push:
+    tags:
+      - 'mobile-v*'
+
+# Um build de cada vez: se uma tag nova chegar, cancela a anterior em vez de
+# gastar dois runners.
+concurrency:
+  group: ios-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Xcode 26+ e obrigatorio: o Expo SDK 57 traz pacotes SwiftPM com
+    # `swift-tools-version: 6.2` (expo-modules-jsi), que o Xcode 16 nao resolve.
+    # A imagem macos-15 ainda tem Xcode 26.x, mas com o 16.4 como default e de
+    # forma transitoria — o macos-26 e a casa definitiva do Xcode 26.
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: mobile
+
+    env:
+      # Sem isto o app aponta para localhost e nao acha a API.
+      EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+      # Fastlane em CI: sem prompt e com log legivel.
+      FASTLANE_DISABLE_COLORS: '1'
+      LC_ALL: en_US.UTF-8
+      LANG: en_US.UTF-8
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Escolha explicita do Xcode: imagens de runner trazem varias versoes e o
+      # default nem sempre e a mais nova. Com Xcode 16 o archive morre la na
+      # frente com "Could not resolve package dependencies", 15 min depois.
+      - name: Selecionar Xcode 26+
+        working-directory: .
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "Nenhum Xcode 26+ nesta imagem. Disponiveis:" >&2
+            ls -d /Applications/Xcode*.app >&2
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          echo "DEVELOPER_DIR=$XCODE/Contents/Developer" >> "$GITHUB_ENV"
+          xcodebuild -version
+          swift --version
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Symlink Node para Xcode
+        run: sudo ln -sf $(which node) /usr/local/bin/node
+
+      - name: Instalar dependencias JS
+        run: npm ci
+
+      - name: Checar tipos
+        run: npx tsc --noEmit
+
+      # Continuous native generation: ios/ nao e versionado, nasce aqui.
+      - name: Gerar projeto iOS (expo prebuild)
+        run: npx expo prebuild --platform ios
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: mobile
+
+      - name: Rodar fastlane
+        run: bundle exec fastlane ios ${{ github.event_name == 'push' && 'beta' || inputs.lane }}
+
+      - name: Guardar o .ipa
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lexa-ios
+          path: mobile/build/*.ipa
+          if-no-files-found: ignore
+          retention-days: 7
