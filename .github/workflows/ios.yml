@@ -9,14 +9,16 @@ on:
       lane:
         description: 'Lane do fastlane'
         required: true
-        default: build_only
+        # `beta` e o default de proposito: com build_only no topo, um disparo
+        # manual sem trocar o seletor terminava verde sem publicar nada.
+        default: beta
         type: choice
         options:
-          - build_only
           - beta
+          - build_only
   push:
     tags:
-      - 'mobile-v*'
+      - 'v*'
 
 # Um build de cada vez: se uma tag nova chegar, cancela a anterior em vez de
 # gastar dois runners.
@@ -32,13 +34,14 @@ jobs:
     # forma transitoria — o macos-26 e a casa definitiva do Xcode 26.
     runs-on: macos-26
     timeout-minutes: 60
-    defaults:
-      run:
-        working-directory: mobile
 
     env:
       # Sem isto o app aponta para localhost e nao acha a API.
       EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+      # Google Sign-In. Precisam existir no `expo prebuild` (o iOS gera o URL
+      # scheme do callback) e no bundle JS. Vazios = botao escondido.
+      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+      EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -58,7 +61,6 @@ jobs:
       # default nem sempre e a mais nova. Com Xcode 16 o archive morre la na
       # frente com "Could not resolve package dependencies", 15 min depois.
       - name: Selecionar Xcode 26+
-        working-directory: .
         run: |
           XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
           if [ -z "$XCODE" ]; then
@@ -75,7 +77,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: mobile/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Symlink Node para Xcode
         run: sudo ln -sf $(which node) /usr/local/bin/node
@@ -94,16 +96,17 @@ jobs:
         with:
           ruby-version: '3.3'
           bundler-cache: true
-          working-directory: mobile
 
+      # No disparo manual vale o seletor; num push de tag os inputs vem vazios,
+      # e ai a tag publica.
       - name: Rodar fastlane
-        run: bundle exec fastlane ios ${{ github.event_name == 'push' && 'beta' || inputs.lane }}
+        run: bundle exec fastlane ios ${{ inputs.lane || 'beta' }}
 
       - name: Guardar o .ipa
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lexa-ios
-          path: mobile/build/*.ipa
+          path: build/*.ipa
           if-no-files-found: ignore
           retention-days: 7

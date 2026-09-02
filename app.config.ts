@@ -12,6 +12,18 @@ import type { ExpoConfig } from 'expo/config';
 const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? '';
 const isCleartextApi = apiUrl.startsWith('http://');
 
+/**
+ * O plugin do Google Sign-In precisa registrar o "reversed client ID" como URL
+ * scheme para receber o callback. Ele e o proprio client ID de iOS invertido,
+ * entao derivamos em vez de pedir um segundo secret que poderia divergir.
+ * Sem client ID configurado o plugin nao entra: o build segue normalmente e o
+ * botao some da tela (ver src/auth/googleSignIn.ts).
+ */
+const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
+const googleIosUrlScheme = googleIosClientId.endsWith('.apps.googleusercontent.com')
+  ? `com.googleusercontent.apps.${googleIosClientId.replace('.apps.googleusercontent.com', '')}`
+  : null;
+
 const config: ExpoConfig = {
   name: 'Lexa',
   slug: 'lexa',
@@ -58,6 +70,13 @@ const config: ExpoConfig = {
         backgroundColor: '#FDF6E9',
       },
     ],
+    // A anotacao de tupla e necessaria: sem ela o TS infere (string | objeto)[]
+    // e o tipo de `plugins` exige exatamente [nome, config].
+    ...(googleIosUrlScheme
+      ? ([
+          ['@react-native-google-signin/google-signin', { iosUrlScheme: googleIosUrlScheme }],
+        ] as [string, Record<string, string>][])
+      : []),
   ],
   experiments: { typedRoutes: true },
 };

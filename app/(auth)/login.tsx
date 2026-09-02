@@ -13,51 +13,40 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../src/api/client';
 import { ApiError } from '../../src/api/types';
 import { useAuth } from '../../src/auth/AuthContext';
+import { useGoogleAuth } from '../../src/auth/useGoogleAuth';
 import { Field } from '../../src/components/Field';
+import { GoogleButton, OrDivider } from '../../src/components/GoogleButton';
 import { PushButton } from '../../src/components/PushButton';
 import { colors, fonts, radius } from '../../src/theme/tokens';
 
-export default function Register() {
+export default function Login() {
   const { signIn } = useAuth();
   const insets = useSafeAreaInsets();
 
-  const [form, setForm] = useState({
-    username: '',
-    email: '',
-    first_name: '',
-    last_name: '',
-    password: '',
-  });
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const google = useGoogleAuth(setError);
 
-  const set = (key: keyof typeof form) => (value: string) =>
-    setForm((f) => ({ ...f, [key]: value }));
-
-  // O RegisterSerializer exige min_length=6 na senha.
   const canSubmit =
-    form.username.trim().length > 0 && form.password.length >= 6 && !submitting;
+    username.trim().length > 0 && password.length > 0 && !submitting && !google.busy;
 
   async function handleSubmit() {
     if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
     try {
-      const data = await api.register({ ...form, username: form.username.trim() });
+      const data = await api.login({ username: username.trim(), password });
       await signIn(data);
+      // A navegacao e do RouteGuard: ele reage ao token aparecer.
     } catch (e) {
-      let msg = 'Não foi possível criar a conta.';
-      if (e instanceof ApiError && e.data) {
-        // O DRF devolve erros de validacao como {campo: [mensagens]}.
-        const first = Object.entries(e.data).find(([, v]) => Array.isArray(v) && v.length);
-        if (first) {
-          msg = String((first[1] as unknown[])[0]);
-        } else if (e.data.error || e.data.detail) {
-          msg = String(e.data.error || e.data.detail);
-        }
-      } else if (!(e instanceof ApiError)) {
-        msg = 'Sem conexão com o servidor.';
-      }
+      // O backend responde em pt-BR (ex.: "Credenciais inválidas."), entao a
+      // mensagem vai crua para a tela, igual a web.
+      const msg =
+        e instanceof ApiError
+          ? e.data?.error || e.data?.detail || 'Não foi possível entrar.'
+          : 'Sem conexão com o servidor.';
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -82,36 +71,42 @@ export default function Register() {
         <Text
           style={{
             fontFamily: fonts.displayBold,
-            fontSize: 28,
-            color: colors.text,
-            marginBottom: 24,
+            fontSize: 40,
+            color: colors.primary,
+            textAlign: 'center',
           }}
         >
-          Criar conta
+          Lexa
+        </Text>
+        <Text
+          style={{
+            fontFamily: fonts.body,
+            fontSize: 15,
+            color: colors.muted,
+            textAlign: 'center',
+            marginTop: 4,
+            marginBottom: 32,
+          }}
+        >
+          Lei seca, todo dia.
         </Text>
 
         <Field
           label="Usuário"
-          value={form.username}
-          onChangeText={set('username')}
+          value={username}
+          onChangeText={setUsername}
           autoCapitalize="none"
           autoCorrect={false}
+          textContentType="username"
         />
         <Field
-          label="E-mail"
-          value={form.email}
-          onChangeText={set('email')}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-        />
-        <Field label="Nome" value={form.first_name} onChangeText={set('first_name')} />
-        <Field label="Sobrenome" value={form.last_name} onChangeText={set('last_name')} />
-        <Field
-          label="Senha (mínimo 6 caracteres)"
-          value={form.password}
-          onChangeText={set('password')}
+          label="Senha"
+          value={password}
+          onChangeText={setPassword}
           secureTextEntry
+          textContentType="password"
+          onSubmitEditing={handleSubmit}
+          returnKeyType="go"
         />
 
         {error ? (
@@ -134,15 +129,22 @@ export default function Register() {
             <ActivityIndicator color={colors.primary} />
           </View>
         ) : (
-          <PushButton label="Criar conta" onPress={handleSubmit} disabled={!canSubmit} />
+          <PushButton label="Entrar" onPress={handleSubmit} disabled={!canSubmit} />
         )}
+
+        {google.available ? (
+          <>
+            <OrDivider />
+            <GoogleButton onPress={google.start} loading={google.busy} disabled={submitting} />
+          </>
+        ) : null}
 
         <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 24 }}>
           <Text style={{ fontFamily: fonts.body, color: colors.muted, fontSize: 14 }}>
-            Já tem conta?{' '}
+            Não tem conta?{' '}
           </Text>
-          <Link href="/(auth)/login" style={{ fontFamily: fonts.bodyBold, fontSize: 14 }}>
-            <Text style={{ color: colors.primary }}>Entrar</Text>
+          <Link href="/(auth)/register" style={{ fontFamily: fonts.bodyBold, fontSize: 14 }}>
+            <Text style={{ color: colors.primary }}>Criar conta</Text>
           </Link>
         </View>
       </ScrollView>

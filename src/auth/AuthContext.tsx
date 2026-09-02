@@ -18,6 +18,7 @@ import React, {
 
 import { api, setTokenRefreshedHandler, setTokens, setUnauthorizedHandler } from '../api/client';
 import type { AuthResponse, User } from '../api/types';
+import { signOutFromGoogle } from './googleSignIn';
 import { clearSession, loadSession, saveTokens, saveUser } from './tokenStore';
 
 interface AuthState {
@@ -51,6 +52,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     setTokens(null, null);
     await clearSession();
+    // Sem isto o SDK do Google guarda a conta e o proximo toque no botao
+    // reentra sem perguntar — ruim para quem deslogou para trocar de conta.
+    await signOutFromGoogle();
     if (mounted.current) {
       setState({ user: null, token: null, loading: false });
     }
