@@ -30,9 +30,11 @@ import { colors, fonts, radius } from '../src/theme/tokens';
  *   question -> lacuna de multipla escolha (quando o artigo tem questao)
  *   evaluation -> autoavaliacao facil/medio/dificil, que fecha o item
  *
- * O tempo minimo e reimposto no servidor: complete_item devolve
- * 400 {error:'reading_time', wait_seconds} se o cliente se adiantar. Nesse caso
- * reiniciamos o countdown com o valor que o servidor mandou, igual a web.
+ * O tempo minimo e reimposto no servidor: complete_item so aceita a avaliacao
+ * depois de min_read_seconds contados a partir do shown_at, e ate la responde
+ * {error:'reading_time', wait_seconds}. O countdown do cliente e um espelho
+ * desse relogio — por isso ele nunca e cortado, so escondido: "Ja li" adianta
+ * a questao, nao a conclusao.
  */
 type Step = 'reading' | 'question' | 'evaluation';
 
@@ -61,11 +63,18 @@ export default function Leitura() {
   const [completion, setCompletion] = useState<CompleteItemResponse | null>(null);
   const [xpToast, setXpToast] = useState<number | null>(null);
   const [mascotVariant, setMascotVariant] = useState<MascotVariant>('idle');
-  const [skipRefused, setSkipRefused] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const toastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // O passo corrente, legivel de dentro do intervalo. A contagem sobrevive ao
+  // "Ja li", entao o tick do zero precisa saber se o usuario ainda esta lendo
+  // ou se ja seguiu para a questao/avaliacao.
+  const stepRef = useRef<Step>('reading');
+
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
 
   const current = items[currentIndex];
   const question = current?.article?.question ?? null;
@@ -88,8 +97,21 @@ export default function Leitura() {
     [],
   );
 
+  const advanceStep = useCallback(
+    (item: SequenceItem | undefined) => {
+      const q = item?.article?.question ?? null;
+      setStep(q && !item?.respondido ? 'question' : 'evaluation');
+    },
+    [],
+  );
+
   /**
-   * Dispara o countdown e chama `onDone` quando ele zera.
+   * Dispara o countdown do tempo minimo de leitura.
+   *
+   * Ele avanca o passo sozinho ao zerar, mas so enquanto o usuario ainda esta
+   * lendo: depois de "Ja li" a contagem continua correndo por baixo da questao
+   * (e o relogio do servidor tambem), e o zero ali serve apenas para liberar os
+   * botoes de avaliacao — mexer no passo atropelaria a tela.
    *
    * O fim da contagem e avisado daqui, e nao inferido de um efeito que olha
    * `countdownLeft === 0`: entre um item e outro esse zero e do item anterior,
@@ -100,60 +122,53 @@ export default function Leitura() {
    * para desenhar, e um updater nao e lugar de efeito colateral.
    */
   const startCountdown = useCallback(
-    (seconds: number, onDone: () => void) => {
+    (seconds: number, item: SequenceItem | undefined) => {
       clearTimer();
-      setCountdownLeft(seconds);
+      setCountdownLeft(Math.max(0, seconds));
+      if (seconds <= 0) return;
       let left = seconds;
       timerRef.current = setInterval(() => {
         left -= 1;
         setCountdownLeft(Math.max(0, left));
         if (left <= 0) {
           clearTimer();
-          onDone();
+          if (stepRef.current === 'reading') advanceStep(item);
         }
       }, 1000);
     },
-    [clearTimer],
-  );
-
-  const advanceStep = useCallback(
-    (item: SequenceItem | undefined) => {
-      const q = item?.article?.question ?? null;
-      setStep(q && !item?.respondido ? 'question' : 'evaluation');
-    },
-    [],
+    [advanceStep, clearTimer],
   );
 
   /**
-   * "Ja li": corta o countdown visual para quem le rapido nao ficar esperando.
+   * "Ja li": leva quem le rapido direto para a questao, sem esperar o relogio.
    *
-   * Nao burla o tempo minimo — o servidor ainda pode responder
-   * {error:'reading_time', wait_seconds} no complete_item, e ai o countdown
-   * volta com o valor que ele mandou. Por isso o botao so aparece enquanto
-   * sobram mais de 3s, e nunca mais depois de uma recusa (`skipRefused`).
+   * O que NAO se faz aqui e parar a contagem. O servidor cobra o tempo minimo a
+   * partir do shown_at, entao corta-la so trocava a espera por uma recusa: o
+   * usuario respondia a questao, avaliava, levava um {error:'reading_time'} e
+   * caia de volta no artigo para refazer tudo no fim. Deixando o countdown
+   * correr, ele adianta a leitura da questao e a avaliacao destrava sozinha
+   * quando o tempo do servidor completa — uma espera so, e no lugar certo.
    */
   const skipTimer = useCallback(() => {
-    // Nao zera countdownLeft de proposito: ha um efeito que avanca sozinho
-    // quando ele chega a zero, e ele atropelaria a comemoracao de 400ms.
-    // A web tambem so para o intervalo.
-    clearTimer();
     setMascotVariant('happy');
     // O gato comemora por um instante antes de a tela virar — mesmos 400ms da web.
     skipRef.current = setTimeout(() => {
       setMascotVariant('idle');
       advanceStep(current);
     }, 400);
-  }, [advanceStep, clearTimer, current]);
+  }, [advanceStep, current]);
 
   // Abre o item corrente: registra a exibicao e dispara o countdown.
   const startItem = useCallback(
     async (item: SequenceItem | undefined) => {
       if (!item) return;
-      setSkipRefused(false);
       setStep('reading');
       setSelectedAnswer(null);
       setAnswerResult(null);
       clearTimer();
+      // Zera antes do await: durante o showItem o passo ja e 'reading', e o
+      // numero que sobrou do item anterior apareceria como espera deste.
+      setCountdownLeft(0);
 
       try {
         const res = await api.showItem(item.id);
@@ -165,7 +180,7 @@ export default function Leitura() {
           return;
         }
         setCountdownTotal(minSec);
-        startCountdown(minSec, () => advanceStep(item));
+        startCountdown(minSec, item);
       } catch {
         // Falha ao registrar nao pode prender o usuario na leitura; o servidor
         // ainda valida o tempo no complete.
@@ -244,7 +259,9 @@ export default function Leitura() {
   }, [completion?.sequencia_concluida]);
 
   async function evaluate(avaliacao: Avaliacao) {
-    if (!current || submitting) return;
+    // countdownLeft > 0 aqui significa que o relogio do servidor ainda nao
+    // fechou; os botoes ja estao desabilitados, isto e so a rede de seguranca.
+    if (!current || submitting || countdownLeft > 0) return;
     setSubmitting(true);
     try {
       const res = await api.completeItem(current.id, avaliacao);
@@ -271,19 +288,27 @@ export default function Leitura() {
         setCompletion(res);
       }
     } catch (e) {
-      // O servidor recusou por tempo de leitura: volta para a leitura com o
-      // countdown que ele mandou.
+      // O servidor recusou por tempo de leitura (relogios fora de sincronia, ou
+      // uma exibicao que nunca foi registrada). Ficamos na avaliacao e apenas
+      // retomamos a contagem: o artigo ja foi lido e a questao, respondida —
+      // voltar ao passo de leitura obrigaria a refazer tudo.
       if (e instanceof ApiError && e.isReadingTime) {
-        const wait = e.waitSeconds || 5;
-        // Ja sabemos que o servidor esta cobrando o tempo deste item: reoferecer
-        // "Ja li" so levaria a uma segunda recusa. Aqui divergimos da web de
-        // proposito — la o botao reaparece e o usuario bate na mesma parede.
-        setSkipRefused(true);
-        setStep('reading');
+        let wait = e.waitSeconds;
+        if (wait <= 0) {
+          // Sem wait_seconds o servidor esta dizendo que nao tem shown_at deste
+          // item: o showItem falhou la atras. Registrar agora e o unico jeito de
+          // a proxima tentativa nao levar a mesma recusa para sempre.
+          try {
+            const res = await api.showItem(current.id);
+            wait = res.min_read_seconds ?? current.article?.min_read_seconds ?? 5;
+          } catch {
+            wait = 5;
+          }
+        }
         // O total so cresce aqui: a barra de progresso nao pode andar para tras
         // se o servidor pedir uma espera maior que a do item.
         setCountdownTotal((t) => Math.max(t, wait));
-        startCountdown(wait, () => advanceStep(current));
+        startCountdown(wait, current);
       } else {
         setError('Não foi possível concluir este item.');
       }
@@ -383,6 +408,10 @@ export default function Leitura() {
   }
 
   const progressPct = items.length > 0 ? ((currentIndex + 1) / items.length) * 100 : 0;
+  // A avaliacao e o unico passo que o servidor recusa antes da hora, entao e
+  // nela que a espera aparece — desabilitada e com o relogio a vista, em vez de
+  // deixar tocar e devolver o usuario ao artigo.
+  const evalLocked = submitting || countdownLeft > 0;
   const countdownPct =
     countdownTotal > 0 ? ((countdownTotal - countdownLeft) / countdownTotal) * 100 : 100;
 
@@ -424,8 +453,10 @@ export default function Leitura() {
         </Text>
       </View>
 
-      {/* Barra do tempo mínimo de leitura */}
-      {step === 'reading' && countdownLeft > 0 ? (
+      {/* Barra do tempo mínimo de leitura. Segue na tela depois do "Já li" para
+          explicar por que a avaliação ainda está travada; some só na questão,
+          onde pareceria um cronômetro para responder. */}
+      {countdownLeft > 0 && step !== 'question' ? (
         <View style={{ paddingHorizontal: 20, marginBottom: 8 }}>
           <View
             style={{
@@ -694,11 +725,13 @@ export default function Leitura() {
                 marginBottom: 4,
               }}
             >
-              Quão bem você lembrava deste artigo?
+              {countdownLeft > 0
+                ? `Tempo mínimo de leitura: ${countdownLeft}s`
+                : 'Quão bem você lembrava deste artigo?'}
             </Text>
-            <PushButton label="Fácil" variant="success" onPress={() => evaluate('facil')} disabled={submitting} />
-            <PushButton label="Médio" variant="primary" onPress={() => evaluate('medio')} disabled={submitting} />
-            <PushButton label="Difícil" variant="danger" onPress={() => evaluate('dificil')} disabled={submitting} />
+            <PushButton label="Fácil" variant="success" onPress={() => evaluate('facil')} disabled={evalLocked} />
+            <PushButton label="Médio" variant="primary" onPress={() => evaluate('medio')} disabled={evalLocked} />
+            <PushButton label="Difícil" variant="danger" onPress={() => evaluate('dificil')} disabled={evalLocked} />
           </View>
         ) : null}
 
@@ -729,10 +762,9 @@ export default function Leitura() {
                 </Text>
               </View>
 
-              {/* Some perto do fim (com 3s ou menos, esperar sai mais barato que
-                  arriscar a recusa) e some de vez depois de o servidor ja ter
-                  recusado este item. */}
-              {countdownLeft > 3 && !skipRefused ? (
+              {/* Some perto do fim: com 3s ou menos, adiantar a questão não
+                  compra nada — o tempo mínimo termina antes da avaliação. */}
+              {countdownLeft > 3 ? (
                 <Pressed
                   onPress={skipTimer}
                   accessibilityLabel="Já li este artigo"
