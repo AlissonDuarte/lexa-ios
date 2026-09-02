@@ -20,6 +20,7 @@ import { api } from '../api/client';
 import { ApiError } from '../api/types';
 import type { RoadmapComment, RoadmapIdea } from '../api/types';
 import { colors, fonts, radius } from '../theme/tokens';
+import { Pressed } from './Pressed';
 import { AvatarStack, CategoryTag, STATUS_META, VoteButton, avatarColor, formatDate } from './roadmap';
 
 const COMMENT_MAX = 500;
@@ -366,20 +367,19 @@ export function IdeaDetailSheet({
                 color: colors.text,
               }}
             />
-            <Pressable
+            <Pressed
               onPress={send}
               disabled={sending || (isAuth && !text.trim())}
-              accessibilityRole="button"
               accessibilityLabel="Enviar comentário"
-              style={({ pressed }) => ({
+              outerStyle={{ opacity: sending || (isAuth && !text.trim()) ? 0.5 : 1 }}
+              style={(held) => ({
                 width: 44,
                 height: 44,
                 borderRadius: radius.md,
                 backgroundColor: colors.primary,
                 alignItems: 'center',
                 justifyContent: 'center',
-                opacity: sending || (isAuth && !text.trim()) ? 0.5 : 1,
-                transform: [{ scale: pressed ? 0.94 : 1 }],
+                transform: [{ scale: held ? 0.94 : 1 }],
               })}
             >
               {sending ? (
@@ -387,7 +387,7 @@ export function IdeaDetailSheet({
               ) : (
                 <Ionicons name="send" size={18} color="#FFFFFF" />
               )}
-            </Pressable>
+            </Pressed>
           </View>
         </View>
       </KeyboardAvoidingView>

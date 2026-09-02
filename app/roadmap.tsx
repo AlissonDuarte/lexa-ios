@@ -20,7 +20,8 @@ import type {
   RoadmapCategory,
 } from '../src/api/types';
 import { useAuth } from '../src/auth/AuthContext';
-import { Pop, SlideUp } from '../src/components/motion';
+import { Pop } from '../src/components/motion';
+import { Pressed } from '../src/components/Pressed';
 import {
   CATS,
   FilterChip,
@@ -215,12 +216,11 @@ export default function Roadmap() {
           paddingBottom: 8,
         }}
       >
-        <Pressable
+        <Pressed
           onPress={() => router.replace('/(tabs)/dashboard')}
-          accessibilityRole="button"
           accessibilityLabel="Voltar ao início"
           hitSlop={8}
-          style={({ pressed }) => ({
+          style={(held) => ({
             flexDirection: 'row',
             alignItems: 'center',
             gap: 6,
@@ -230,18 +230,44 @@ export default function Roadmap() {
             backgroundColor: colors.card,
             borderWidth: 1,
             borderColor: colors.border,
-            opacity: pressed ? 0.7 : 1,
+            opacity: held ? 0.7 : 1,
           })}
         >
           <Ionicons name="chevron-back" size={16} color={colors.muted} />
           <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: colors['text-soft'] }}>
             Início
           </Text>
-        </Pressable>
+        </Pressed>
 
         <Text style={{ flex: 1, fontFamily: fonts.displayBold, fontSize: 20, color: colors.text }}>
           Roadmap
         </Text>
+
+        {/* A web tem "Sugerir ideia" no toolbar alem do rodape; aqui vale o
+            mesmo: quem chega pela lista encontra a acao sem precisar rolar. */}
+        <Pressed
+          onPress={() => {
+            if (requireAuth()) setShowSubmit(true);
+          }}
+          accessibilityLabel="Sugerir ideia"
+          hitSlop={8}
+          style={(held) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
+            height: 36,
+            paddingHorizontal: 12,
+            borderRadius: 12,
+            backgroundColor: colors.primary,
+            borderBottomWidth: held ? 1 : 3,
+            borderBottomColor: colors['primary-dark'],
+          })}
+        >
+          <Ionicons name="add" size={16} color="#FFFFFF" />
+          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: '#FFFFFF' }}>
+            Sugerir
+          </Text>
+        </Pressed>
       </View>
 
       <ScrollView
@@ -504,8 +530,10 @@ export default function Roadmap() {
         })}
       </ScrollView>
 
-      {/* ── Chamada fixa para sugerir ─────────────────────────────────────── */}
-      <SlideUp
+      {/* ── Chamada fixa para sugerir ───────────────────────────────────────
+          Sem animacao de entrada: e a acao principal da tela e fica sempre no
+          lugar. Animar o que e permanente so cria uma chance de nunca aparecer. */}
+      <View
         style={{
           position: 'absolute',
           left: 0,
@@ -519,18 +547,18 @@ export default function Roadmap() {
           borderTopColor: colors.border,
         }}
       >
-        <Pressable
+        <Pressed
           onPress={() => {
             if (requireAuth()) setShowSubmit(true);
           }}
-          accessibilityRole="button"
-          style={({ pressed }) => ({
+          accessibilityLabel="Sugerir ideia"
+          style={(held) => ({
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
             gap: 8,
             backgroundColor: colors.primary,
-            borderBottomWidth: pressed ? 2 : 4,
+            borderBottomWidth: held ? 2 : 4,
             borderBottomColor: colors['primary-dark'],
             borderRadius: radius.lg,
             paddingVertical: 14,
@@ -540,8 +568,8 @@ export default function Roadmap() {
           <Text style={{ fontFamily: fonts.displayBold, fontSize: 15, color: '#FFFFFF' }}>
             Sugerir ideia
           </Text>
-        </Pressable>
-      </SlideUp>
+        </Pressed>
+      </View>
 
       <SubmitIdeaSheet
         visible={showSubmit}

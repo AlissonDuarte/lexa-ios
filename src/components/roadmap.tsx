@@ -9,6 +9,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import type { RoadmapCategory, RoadmapIdea, RoadmapStatus, RoadmapVoter } from '../api/types';
 import { colors, fonts, radius } from '../theme/tokens';
+import { Pressed } from './Pressed';
 
 export const CATS: Record<RoadmapCategory, { label: string; emoji: string; color: string }> = {
   content: { label: 'Conteúdo', emoji: '📚', color: '#E8642D' },
@@ -266,13 +267,13 @@ export function VoteButton({
 
   const voted = idea.has_voted;
   return (
-    <Pressable
+    <Pressed
       onPress={onPress}
       disabled={busy}
-      accessibilityRole="button"
       accessibilityLabel={voted ? `Remover voto em ${idea.title}` : `Votar em ${idea.title}`}
-      accessibilityState={{ selected: voted, disabled: busy }}
-      style={({ pressed }) => ({
+      selected={voted}
+      outerStyle={{ opacity: busy ? 0.5 : 1 }}
+      style={(held) => ({
         width: 56,
         borderRadius: radius.md,
         backgroundColor: voted ? colors.primary : colors.surface,
@@ -280,8 +281,7 @@ export function VoteButton({
         borderColor: voted ? colors['primary-dark'] : colors.border,
         alignItems: 'center',
         paddingVertical: 8,
-        opacity: busy ? 0.5 : 1,
-        transform: [{ scale: pressed ? 0.94 : 1 }],
+        transform: [{ scale: held ? 0.94 : 1 }],
       })}
     >
       <Ionicons name="arrow-up" size={14} color={voted ? '#FFFFFF' : colors.text} />
@@ -303,7 +303,7 @@ export function VoteButton({
       >
         {voted ? 'votado' : 'votar'}
       </Text>
-    </Pressable>
+    </Pressed>
   );
 }
 

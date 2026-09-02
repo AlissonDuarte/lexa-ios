@@ -60,7 +60,10 @@ export function Flicker({ children, style }: MotionProps) {
  * Entrada da barra de feedback e dos blocos de passo.
  */
 export function SlideUp({ children, style, delay = 0 }: MotionProps) {
-  const t = useSharedValue(0);
+  // Nasce no estado FINAL, nao no inicial. Se por qualquer motivo a animacao
+  // nao rodar, o conteudo aparece do mesmo jeito; comecar em opacity 0 faria a
+  // falha da animacao virar conteudo invisivel para sempre.
+  const t = useSharedValue(1);
   const reduced = useReducedMotion();
 
   useEffect(() => {
@@ -68,6 +71,7 @@ export function SlideUp({ children, style, delay = 0 }: MotionProps) {
       t.value = 1;
       return;
     }
+    t.value = 0;
     t.value = withDelay(delay, withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) }));
     return () => cancelAnimation(t);
   }, [delay, reduced, t]);
@@ -87,8 +91,9 @@ export function SlideUp({ children, style, delay = 0 }: MotionProps) {
 export function Pop({ children, style, delay = 0 }: MotionProps) {
   // `p` E a escala, nao um progresso de 0 a 1: assim os valores batem com o
   // keyframe (0.5 -> 1.08 -> 1) sem uma conversao no meio que ja tinha comido
-  // o overshoot.
-  const p = useSharedValue(0.5);
+  // o overshoot. Comeca em 1 (estado final) pelo mesmo motivo do SlideUp: uma
+  // animacao que nao roda nao pode esconder o conteudo.
+  const p = useSharedValue(1);
   const reduced = useReducedMotion();
 
   useEffect(() => {
@@ -96,6 +101,7 @@ export function Pop({ children, style, delay = 0 }: MotionProps) {
       p.value = 1;
       return;
     }
+    p.value = 0.5;
     p.value = withDelay(
       delay,
       withSequence(

@@ -17,6 +17,7 @@ import { useAuth } from '../src/auth/AuthContext';
 import { Mascot } from '../src/components/Mascot';
 import type { MascotVariant } from '../src/components/Mascot';
 import { SlideUp } from '../src/components/motion';
+import { Pressed } from '../src/components/Pressed';
 import { PushButton } from '../src/components/PushButton';
 import { colors, fonts, radius } from '../src/theme/tokens';
 
@@ -86,19 +87,29 @@ export default function Leitura() {
     [],
   );
 
+  /**
+   * Dispara o countdown e chama `onDone` quando ele zera.
+   *
+   * O fim da contagem e avisado daqui, e nao inferido de um efeito que olha
+   * `countdownLeft === 0`: entre um item e outro esse zero e do item anterior,
+   * e o efeito avancava o passo durante o `await showItem`, pulando a leitura
+   * inteira do segundo item em diante.
+   *
+   * `left` vive na closure porque e a contagem de verdade; o state serve so
+   * para desenhar, e um updater nao e lugar de efeito colateral.
+   */
   const startCountdown = useCallback(
-    (seconds: number) => {
+    (seconds: number, onDone: () => void) => {
       clearTimer();
-      setCountdownTotal((t) => Math.max(t, seconds));
       setCountdownLeft(seconds);
+      let left = seconds;
       timerRef.current = setInterval(() => {
-        setCountdownLeft((left) => {
-          if (left <= 1) {
-            clearTimer();
-            return 0;
-          }
-          return left - 1;
-        });
+        left -= 1;
+        setCountdownLeft(Math.max(0, left));
+        if (left <= 0) {
+          clearTimer();
+          onDone();
+        }
       }, 1000);
     },
     [clearTimer],
@@ -153,7 +164,7 @@ export default function Leitura() {
           return;
         }
         setCountdownTotal(minSec);
-        startCountdown(minSec);
+        startCountdown(minSec, () => advanceStep(item));
       } catch {
         // Falha ao registrar nao pode prender o usuario na leitura; o servidor
         // ainda valida o tempo no complete.
@@ -162,13 +173,6 @@ export default function Leitura() {
     },
     [advanceStep, clearTimer, startCountdown],
   );
-
-  // Quando o countdown zera durante a leitura, avanca.
-  useEffect(() => {
-    if (step === 'reading' && countdownLeft === 0 && countdownTotal > 0) {
-      advanceStep(current);
-    }
-  }, [step, countdownLeft, countdownTotal, current, advanceStep]);
 
   // Carga inicial: pega a sequencia do dia e posiciona no primeiro pendente.
   useEffect(() => {
@@ -259,7 +263,10 @@ export default function Leitura() {
         // proposito — la o botao reaparece e o usuario bate na mesma parede.
         setSkipRefused(true);
         setStep('reading');
-        startCountdown(wait);
+        // O total so cresce aqui: a barra de progresso nao pode andar para tras
+        // se o servidor pedir uma espera maior que a do item.
+        setCountdownTotal((t) => Math.max(t, wait));
+        startCountdown(wait, () => advanceStep(current));
       } else {
         setError('Não foi possível concluir este item.');
       }
@@ -431,64 +438,73 @@ export default function Leitura() {
           paddingBottom: insets.bottom + (answerResult ? 132 : 32),
         }}
       >
-        <Text
-          style={{
-            fontFamily: fonts.bodyBold,
-            fontSize: 13,
-            color: current.tipo === 'novo' ? colors.primary : colors.gem,
-            marginBottom: 4,
-          }}
-        >
-          {current.tipo === 'novo' ? 'ARTIGO NOVO' : 'REVISÃO'}
-        </Text>
-        <Text
-          style={{
-            fontFamily: fonts.displayBold,
-            fontSize: 20,
-            color: colors.text,
-            marginBottom: 12,
-          }}
-        >
-          {current.article?.numero}
-        </Text>
-
-        {/* Texto legal em monoespaçada: Agents.md exige fidelidade visual ao
-            documento oficial — nunca reformatar nem resumir. */}
-        <View
-          style={{
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-            borderWidth: 2,
-            borderBottomWidth: 4,
-            borderRadius: radius.lg,
-            padding: 16,
-          }}
-        >
-          <Text
-            style={{
-              fontFamily: fonts.mono,
-              fontSize: 14,
-              lineHeight: 22,
-              color: colors.text,
-            }}
-          >
-            {current.article?.texto}
-          </Text>
-          {current.article?.children?.map((child) => (
+        {/* O artigo SOME durante a questao.
+            A lacuna e recortada deste mesmo texto: deixa-lo na tela ao lado das
+            alternativas entrega a resposta e esvazia o exercicio. A web ja faz
+            isto (`{#if step !== 'question'}` no +page.svelte); aqui o bloco
+            estava sempre visivel. */}
+        {step !== 'question' ? (
+          <>
             <Text
-              key={child.id}
               style={{
-                fontFamily: fonts.mono,
+                fontFamily: fonts.bodyBold,
                 fontSize: 13,
-                lineHeight: 21,
-                color: colors['text-soft'],
-                marginTop: 12,
+                color: current.tipo === 'novo' ? colors.primary : colors.gem,
+                marginBottom: 4,
               }}
             >
-              {child.texto}
+              {current.tipo === 'novo' ? 'ARTIGO NOVO' : 'REVISÃO'}
             </Text>
-          ))}
-        </View>
+            <Text
+              style={{
+                fontFamily: fonts.displayBold,
+                fontSize: 20,
+                color: colors.text,
+                marginBottom: 12,
+              }}
+            >
+              {current.article?.numero}
+            </Text>
+
+            {/* Texto legal em monoespaçada: Agents.md exige fidelidade visual ao
+                documento oficial — nunca reformatar nem resumir. */}
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderWidth: 2,
+                borderBottomWidth: 4,
+                borderRadius: radius.lg,
+                padding: 16,
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: fonts.mono,
+                  fontSize: 14,
+                  lineHeight: 22,
+                  color: colors.text,
+                }}
+              >
+                {current.article?.texto}
+              </Text>
+              {current.article?.children?.map((child) => (
+                <Text
+                  key={child.id}
+                  style={{
+                    fontFamily: fonts.mono,
+                    fontSize: 13,
+                    lineHeight: 21,
+                    color: colors['text-soft'],
+                    marginTop: 12,
+                  }}
+                >
+                  {child.texto}
+                </Text>
+              ))}
+            </View>
+          </>
+        ) : null}
 
         {/* Passo: questão de lacuna */}
         {step === 'question' && question ? (
@@ -599,14 +615,13 @@ export default function Leitura() {
                     : colors.primary;
 
                 return (
-                  <Pressable
+                  <Pressed
                     key={alt}
-                    accessibilityRole="button"
                     accessibilityLabel={`Alternativa ${LETTERS[i] ?? i + 1}: ${alt}`}
-                    accessibilityState={{ disabled: revealed || submitting }}
                     disabled={revealed || submitting}
                     onPress={() => handleAnswer(alt)}
-                    style={({ pressed }) => ({
+                    outerStyle={{ opacity: dimmed ? 0.4 : 1 }}
+                    style={(held) => ({
                       flexDirection: 'row',
                       alignItems: 'center',
                       gap: 12,
@@ -614,12 +629,11 @@ export default function Leitura() {
                       borderColor: border,
                       borderWidth: 2,
                       // O "afundar" ao tocar: a profundidade vira zero.
-                      borderBottomWidth: pressed ? 2 : 4,
+                      borderBottomWidth: held ? 2 : 4,
                       borderBottomColor: depth,
                       borderRadius: radius.lg,
                       paddingHorizontal: 16,
                       paddingVertical: 14,
-                      opacity: dimmed ? 0.4 : 1,
                     })}
                   >
                     <View
@@ -646,7 +660,7 @@ export default function Leitura() {
                     ) : isWrongPick ? (
                       <Ionicons name="close" size={20} color={colors['danger-dark']} />
                     ) : null}
-                  </Pressable>
+                  </Pressed>
                 );
               })}
             </View>
@@ -702,25 +716,24 @@ export default function Leitura() {
                   arriscar a recusa) e some de vez depois de o servidor ja ter
                   recusado este item. */}
               {countdownLeft > 3 && !skipRefused ? (
-                <Pressable
+                <Pressed
                   onPress={skipTimer}
-                  accessibilityRole="button"
                   accessibilityLabel="Já li este artigo"
                   hitSlop={6}
-                  style={({ pressed }) => ({
+                  style={(held) => ({
                     backgroundColor: colors['primary-tint'],
                     borderColor: colors['primary-light'],
                     borderWidth: 1,
                     borderRadius: radius.pill,
                     paddingHorizontal: 16,
                     paddingVertical: 8,
-                    transform: [{ scale: pressed ? 0.95 : 1 }],
+                    transform: [{ scale: held ? 0.95 : 1 }],
                   })}
                 >
                   <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: colors.primary }}>
                     Já li →
                   </Text>
-                </Pressable>
+                </Pressed>
               ) : null}
             </View>
 
@@ -818,19 +831,19 @@ export default function Leitura() {
               </View>
             </View>
 
-            <Pressable
-              accessibilityRole="button"
+            <Pressed
+              accessibilityLabel="Continuar"
               onPress={() => {
                 setAnswerResult(null);
                 setSelectedAnswer(null);
                 setStep('evaluation');
               }}
-              style={({ pressed }) => ({
+              style={(held) => ({
                 backgroundColor: '#FFFFFF',
                 borderRadius: radius.lg,
                 paddingHorizontal: 20,
                 paddingVertical: 10,
-                transform: [{ scale: pressed ? 0.95 : 1 }],
+                transform: [{ scale: held ? 0.95 : 1 }],
               })}
             >
               <Text
@@ -842,7 +855,7 @@ export default function Leitura() {
               >
                 Continuar
               </Text>
-            </Pressable>
+            </Pressed>
           </View>
         </SlideUp>
       ) : null}

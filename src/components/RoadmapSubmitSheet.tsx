@@ -22,6 +22,7 @@ import { api } from '../api/client';
 import { ApiError } from '../api/types';
 import type { RoadmapCategory, RoadmapIdea } from '../api/types';
 import { colors, fonts, radius } from '../theme/tokens';
+import { Pressed } from './Pressed';
 import { CATS, FilterChip } from './roadmap';
 
 const TITLE_MAX = 120;
@@ -247,21 +248,19 @@ export function SubmitIdeaSheet({
                 </Text>
               </Pressable>
 
-              <Pressable
+              <Pressed
                 onPress={submit}
                 disabled={!canSubmit}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !canSubmit }}
-                style={({ pressed }) => ({
-                  flex: 2,
+                accessibilityLabel="Publicar ideia"
+                outerStyle={{ flex: 2, opacity: canSubmit ? 1 : 0.5 }}
+                style={(held) => ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   paddingVertical: 14,
                   borderRadius: radius.lg,
                   backgroundColor: colors.primary,
-                  borderBottomWidth: pressed ? 2 : 4,
+                  borderBottomWidth: held ? 2 : 4,
                   borderBottomColor: colors['primary-dark'],
-                  opacity: canSubmit ? 1 : 0.5,
                 })}
               >
                 {busy ? (
@@ -271,7 +270,7 @@ export function SubmitIdeaSheet({
                     Publicar ideia
                   </Text>
                 )}
-              </Pressable>
+              </Pressed>
             </View>
           </ScrollView>
         </View>

@@ -18,6 +18,7 @@ import type { Achievement, Gamification } from '../../src/api/types';
 import { useAuth } from '../../src/auth/AuthContext';
 import { GameTopBar } from '../../src/components/GameTopBar';
 import { Mascot } from '../../src/components/Mascot';
+import { Pressed } from '../../src/components/Pressed';
 import { GrowBar, Pop } from '../../src/components/motion';
 import { PushButton } from '../../src/components/PushButton';
 import { colors, fonts, radius } from '../../src/theme/tokens';
@@ -489,18 +490,17 @@ export default function Perfil() {
         </Card>
 
         {/* ── Roadmap ────────────────────────────────────────────────────── */}
-        <Pressable
+        <Pressed
           onPress={() => router.push('/roadmap')}
-          accessibilityRole="button"
           accessibilityLabel="Abrir o roadmap"
-          style={({ pressed }) => ({
+          style={(held) => ({
             flexDirection: 'row',
             alignItems: 'center',
             gap: 12,
             backgroundColor: colors.card,
             borderColor: colors.border,
             borderWidth: 2,
-            borderBottomWidth: pressed ? 2 : 4,
+            borderBottomWidth: held ? 2 : 4,
             borderRadius: radius.lg,
             padding: 16,
           })}
@@ -526,7 +526,7 @@ export default function Perfil() {
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors['muted-soft']} />
-        </Pressable>
+        </Pressed>
 
         {error ? (
           <Text style={{ fontFamily: fonts.bodySemi, fontSize: 13, color: colors['danger-dark'] }}>
