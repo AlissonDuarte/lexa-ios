@@ -17,7 +17,8 @@ import { api } from '../../src/api/client';
 import type { Achievement, Gamification } from '../../src/api/types';
 import { useAuth } from '../../src/auth/AuthContext';
 import { GameTopBar } from '../../src/components/GameTopBar';
-import { GrowBar, Pop, Sway } from '../../src/components/motion';
+import { Mascot } from '../../src/components/Mascot';
+import { GrowBar, Pop } from '../../src/components/motion';
 import { PushButton } from '../../src/components/PushButton';
 import { colors, fonts, radius } from '../../src/theme/tokens';
 
@@ -198,9 +199,7 @@ export default function Perfil() {
       >
         {/* ── Identidade ─────────────────────────────────────────────────── */}
         <View style={{ alignItems: 'center' }}>
-          <Sway>
-            <Text style={{ fontSize: 92 }}>🐱</Text>
-          </Sway>
+          <Mascot size={132} variant="happy" />
           <Text
             style={{ fontFamily: fonts.displayBold, fontSize: 26, color: colors.text, marginTop: 4 }}
           >
@@ -488,6 +487,46 @@ export default function Perfil() {
             )}
           </View>
         </Card>
+
+        {/* ── Roadmap ────────────────────────────────────────────────────── */}
+        <Pressable
+          onPress={() => router.push('/roadmap')}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir o roadmap"
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderWidth: 2,
+            borderBottomWidth: pressed ? 2 : 4,
+            borderRadius: radius.lg,
+            padding: 16,
+          })}
+        >
+          <View
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              backgroundColor: colors['primary-tint'],
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="map" size={20} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: colors.text }}>
+              Roadmap
+            </Text>
+            <Text style={{ fontFamily: fonts.body, fontSize: 12, color: colors.muted, marginTop: 2 }}>
+              Vote e sugira novas funcionalidades.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors['muted-soft']} />
+        </Pressable>
 
         {error ? (
           <Text style={{ fontFamily: fonts.bodySemi, fontSize: 13, color: colors['danger-dark'] }}>

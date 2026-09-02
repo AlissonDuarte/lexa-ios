@@ -242,6 +242,71 @@ export interface Gamification {
   logs_recentes: { acao: string; xp: number; criado_em: string }[];
 }
 
+// ── Roadmap ──────────────────────────────────────────────────────────────────
+
+export type RoadmapStatus = 'suggested' | 'progress' | 'shipped';
+export type RoadmapCategory =
+  | 'content'
+  | 'gamif'
+  | 'notif'
+  | 'ui'
+  | 'studies'
+  | 'premium'
+  | 'social'
+  | 'bug';
+
+/** Quem votou, para a pilha de avatares. */
+export interface RoadmapVoter {
+  name: string;
+  initials: string;
+}
+
+export interface RoadmapIdea {
+  id: number;
+  title: string;
+  description: string;
+  category: RoadmapCategory;
+  status: RoadmapStatus;
+  author_display: string;
+  /** So preenchido em ideias `progress`. */
+  progress_pct: number | null;
+  eta: string;
+  version: string;
+  created_at: string;
+  votes_count: number;
+  comments_count: number;
+  voters_display: RoadmapVoter[];
+  has_voted: boolean;
+  is_mine: boolean;
+}
+
+export interface RoadmapComment {
+  id: number;
+  text: string;
+  author_name: string;
+  author_initials: string;
+  created_at: string;
+}
+
+export interface RoadmapStats {
+  ideas: number;
+  votes: number;
+  in_progress: number;
+  shipped: number;
+}
+
+/** Resposta do POST /roadmap/ideas/{id}/vote/ — o toggle devolve o novo estado. */
+export interface RoadmapVoteResponse {
+  has_voted: boolean;
+  votes_count: number;
+}
+
+export interface RoadmapIdeaPayload {
+  title: string;
+  description: string;
+  category: RoadmapCategory;
+}
+
 /** Item de /achievements/ — o catalogo inteiro, com o que foi conquistado. */
 export interface Achievement {
   slug: string;

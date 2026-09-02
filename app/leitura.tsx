@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
@@ -13,6 +14,9 @@ import type {
   SequenceItem,
 } from '../src/api/types';
 import { useAuth } from '../src/auth/AuthContext';
+import { Mascot } from '../src/components/Mascot';
+import type { MascotVariant } from '../src/components/Mascot';
+import { SlideUp } from '../src/components/motion';
 import { PushButton } from '../src/components/PushButton';
 import { colors, fonts, radius } from '../src/theme/tokens';
 
@@ -29,6 +33,8 @@ import { colors, fonts, radius } from '../src/theme/tokens';
  * reiniciamos o countdown com o valor que o servidor mandou, igual a web.
  */
 type Step = 'reading' | 'question' | 'evaluation';
+
+const LETTERS = ['A', 'B', 'C', 'D', 'E'];
 
 export default function Leitura() {
   const { law } = useLocalSearchParams<{ law?: string }>();
@@ -52,9 +58,12 @@ export default function Leitura() {
 
   const [completion, setCompletion] = useState<CompleteItemResponse | null>(null);
   const [xpToast, setXpToast] = useState<number | null>(null);
+  const [mascotVariant, setMascotVariant] = useState<MascotVariant>('idle');
+  const [skipRefused, setSkipRefused] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const toastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const current = items[currentIndex];
   const question = current?.article?.question ?? null;
@@ -72,6 +81,7 @@ export default function Leitura() {
     () => () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (toastRef.current) clearTimeout(toastRef.current);
+      if (skipRef.current) clearTimeout(skipRef.current);
     },
     [],
   );
@@ -102,10 +112,32 @@ export default function Leitura() {
     [],
   );
 
+  /**
+   * "Ja li": corta o countdown visual para quem le rapido nao ficar esperando.
+   *
+   * Nao burla o tempo minimo — o servidor ainda pode responder
+   * {error:'reading_time', wait_seconds} no complete_item, e ai o countdown
+   * volta com o valor que ele mandou. Por isso o botao so aparece enquanto
+   * sobram mais de 3s, e nunca mais depois de uma recusa (`skipRefused`).
+   */
+  const skipTimer = useCallback(() => {
+    // Nao zera countdownLeft de proposito: ha um efeito que avanca sozinho
+    // quando ele chega a zero, e ele atropelaria a comemoracao de 400ms.
+    // A web tambem so para o intervalo.
+    clearTimer();
+    setMascotVariant('happy');
+    // O gato comemora por um instante antes de a tela virar — mesmos 400ms da web.
+    skipRef.current = setTimeout(() => {
+      setMascotVariant('idle');
+      advanceStep(current);
+    }, 400);
+  }, [advanceStep, clearTimer, current]);
+
   // Abre o item corrente: registra a exibicao e dispara o countdown.
   const startItem = useCallback(
     async (item: SequenceItem | undefined) => {
       if (!item) return;
+      setSkipRefused(false);
       setStep('reading');
       setSelectedAnswer(null);
       setAnswerResult(null);
@@ -222,6 +254,10 @@ export default function Leitura() {
       // countdown que ele mandou.
       if (e instanceof ApiError && e.isReadingTime) {
         const wait = e.waitSeconds || 5;
+        // Ja sabemos que o servidor esta cobrando o tempo deste item: reoferecer
+        // "Ja li" so levaria a uma segunda recusa. Aqui divergimos da web de
+        // proposito — la o botao reaparece e o usuario bate na mesma parede.
+        setSkipRefused(true);
         setStep('reading');
         startCountdown(wait);
       } else {
@@ -278,7 +314,9 @@ export default function Leitura() {
           gap: 12,
         }}
       >
-        <Text style={{ fontSize: 56, textAlign: 'center' }}>🎉</Text>
+        <View style={{ alignItems: 'center' }}>
+          <Mascot size={140} variant="celebrate" />
+        </View>
         <Text
           style={{
             fontFamily: fonts.displayBold,
@@ -385,7 +423,13 @@ export default function Leitura() {
       ) : null}
 
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }}
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+          // A barra de feedback flutua por cima do scroll; sem esta folga ela
+          // taparia as ultimas alternativas justamente quando o usuario quer
+          // conferir qual era a certa.
+          paddingBottom: insets.bottom + (answerResult ? 132 : 32),
+        }}
       >
         <Text
           style={{
@@ -448,87 +492,167 @@ export default function Leitura() {
 
         {/* Passo: questão de lacuna */}
         {step === 'question' && question ? (
-          <View style={{ marginTop: 24 }}>
-            <Text
+          <SlideUp style={{ marginTop: 24 }}>
+            {/* Enunciado */}
+            <View
               style={{
-                fontFamily: fonts.bodySemi,
-                fontSize: 15,
-                color: colors['text-soft'],
-                marginBottom: 12,
+                backgroundColor: colors.card,
+                borderColor: colors['primary-light'],
+                borderWidth: 2,
+                borderRadius: radius.lg,
+                padding: 18,
+                marginBottom: 16,
               }}
             >
-              {question.texto_lacuna}
-            </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+                <View
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 10,
+                    backgroundColor: colors['primary-tint'],
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons name="help-circle" size={18} color={colors.primary} />
+                </View>
+                <Text
+                  style={{
+                    flex: 1,
+                    marginTop: 6,
+                    fontFamily: fonts.bodyBold,
+                    fontSize: 12,
+                    color: colors.muted,
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  {question.num_lacunas > 1 ? 'Complete a expressão:' : 'Complete o trecho:'}
+                </Text>
+              </View>
+              <Text
+                style={{
+                  fontFamily: fonts.mono,
+                  fontSize: 14,
+                  lineHeight: 25,
+                  color: colors['text-soft'],
+                }}
+              >
+                {question.texto_lacuna}
+              </Text>
+            </View>
 
-            <View style={{ gap: 10 }}>
-              {question.alternativas.map((alt) => {
-                const isSelected = selectedAnswer === alt;
+            {/* Alternativas */}
+            <View style={{ gap: 12 }}>
+              {question.alternativas.map((alt, i) => {
                 const revealed = answerResult !== null;
                 const isRight = revealed && alt === answerResult.resposta_correta;
-                const isWrongPick = revealed && isSelected && !answerResult.correto;
+                const isWrongPick = revealed && alt === selectedAnswer && !answerResult.correto;
+                // Depois de responder, as alternativas que nao sao nem a certa
+                // nem a escolhida apagam, para o olho ir direto ao que importa.
+                const dimmed = revealed && !isRight && !isWrongPick;
 
-                let borderColor = colors.border;
-                let bg = colors.card;
-                if (isRight) {
-                  borderColor = colors['success-dark'];
-                  bg = colors['success-soft'];
-                } else if (isWrongPick) {
-                  borderColor = colors['danger-dark'];
-                  bg = colors['danger-soft'];
-                } else if (isSelected) {
-                  borderColor = colors.primary;
-                }
+                // Entre o toque e a resposta do servidor a alternativa fica
+                // so marcada, sem cor de certo/errado — na web ela pisca de
+                // vermelho nesse intervalo, porque o teste de "errada" nao
+                // espera o resultado chegar.
+                const pending = !revealed && alt === selectedAnswer;
+
+                const border = isRight
+                  ? colors.success
+                  : isWrongPick
+                    ? colors.danger
+                    : pending
+                      ? colors.primary
+                      : colors.border;
+                const depth = isRight
+                  ? colors['success-dark']
+                  : isWrongPick
+                    ? colors['danger-dark']
+                    : pending
+                      ? colors['primary-dark']
+                      : colors.border;
+                const bg = isRight
+                  ? colors['success-soft']
+                  : isWrongPick
+                    ? colors['danger-soft']
+                    : colors.card;
+                const fg = isRight
+                  ? colors['success-dark']
+                  : isWrongPick
+                    ? colors['danger-dark']
+                    : colors.text;
+
+                const badgeBg = isRight
+                  ? colors.success
+                  : isWrongPick
+                    ? colors.danger
+                    : dimmed
+                      ? colors.border
+                      : pending
+                        ? colors.primary
+                        : colors['primary-light'];
+                const badgeFg = isRight || isWrongPick || pending
+                  ? '#FFFFFF'
+                  : dimmed
+                    ? colors.muted
+                    : colors.primary;
 
                 return (
                   <Pressable
                     key={alt}
                     accessibilityRole="button"
+                    accessibilityLabel={`Alternativa ${LETTERS[i] ?? i + 1}: ${alt}`}
+                    accessibilityState={{ disabled: revealed || submitting }}
                     disabled={revealed || submitting}
                     onPress={() => handleAnswer(alt)}
-                    style={{
+                    style={({ pressed }) => ({
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 12,
                       backgroundColor: bg,
-                      borderColor,
+                      borderColor: border,
                       borderWidth: 2,
-                      borderBottomWidth: 3,
-                      borderRadius: radius.md,
-                      padding: 14,
-                    }}
+                      // O "afundar" ao tocar: a profundidade vira zero.
+                      borderBottomWidth: pressed ? 2 : 4,
+                      borderBottomColor: depth,
+                      borderRadius: radius.lg,
+                      paddingHorizontal: 16,
+                      paddingVertical: 14,
+                      opacity: dimmed ? 0.4 : 1,
+                    })}
                   >
-                    <Text style={{ fontFamily: fonts.body, fontSize: 15, color: colors.text }}>
+                    <View
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 10,
+                        backgroundColor: badgeBg,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Text style={{ fontFamily: fonts.displayBold, fontSize: 14, color: badgeFg }}>
+                        {LETTERS[i] ?? String.fromCharCode(65 + i)}
+                      </Text>
+                    </View>
+
+                    <Text style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: 14, color: fg }}>
                       {alt}
                     </Text>
+
+                    {isRight ? (
+                      <Ionicons name="checkmark" size={20} color={colors['success-dark']} />
+                    ) : isWrongPick ? (
+                      <Ionicons name="close" size={20} color={colors['danger-dark']} />
+                    ) : null}
                   </Pressable>
                 );
               })}
             </View>
-
-            {answerResult ? (
-              <View style={{ marginTop: 20 }}>
-                <Text
-                  style={{
-                    fontFamily: fonts.bodyBold,
-                    fontSize: 15,
-                    color: answerResult.correto ? colors['success-dark'] : colors['danger-dark'],
-                    marginBottom: 12,
-                  }}
-                >
-                  {answerResult.correto ? 'Correto!' : `Resposta: ${answerResult.resposta_correta}`}
-                </Text>
-                <PushButton
-                  label="Continuar"
-                  variant={answerResult.correto ? 'success' : 'primary'}
-                  onPress={() => {
-                    setAnswerResult(null);
-                    setSelectedAnswer(null);
-                    setStep('evaluation');
-                  }}
-                />
-              </View>
-            ) : null}
-          </View>
+          </SlideUp>
         ) : null}
 
-        {/* Passo: autoavaliação */}
         {step === 'evaluation' ? (
           <View style={{ marginTop: 24, gap: 10 }}>
             <Text
@@ -549,13 +673,179 @@ export default function Leitura() {
 
         {/* Passo: leitura, aguardando o tempo mínimo */}
         {step === 'reading' ? (
-          <View style={{ marginTop: 24, alignItems: 'center' }}>
-            <Text style={{ fontFamily: fonts.bodySemi, fontSize: 14, color: colors.muted }}>
-              {countdownLeft > 0 ? `Aguarde ${countdownLeft}s` : 'Pronto!'}
-            </Text>
+          <View style={{ marginTop: 24, gap: 16 }}>
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderWidth: 2,
+                borderBottomWidth: 4,
+                borderRadius: radius.lg,
+                padding: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <Mascot size={52} variant={mascotVariant} bow={false} />
+
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontFamily: fonts.displayBold, fontSize: 15, color: colors.text }}>
+                  Lendo artigo…
+                </Text>
+                <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: colors.muted }}>
+                  {countdownLeft > 0 ? `Aguarde ${countdownLeft}s` : 'Pronto!'}
+                </Text>
+              </View>
+
+              {/* Some perto do fim (com 3s ou menos, esperar sai mais barato que
+                  arriscar a recusa) e some de vez depois de o servidor ja ter
+                  recusado este item. */}
+              {countdownLeft > 3 && !skipRefused ? (
+                <Pressable
+                  onPress={skipTimer}
+                  accessibilityRole="button"
+                  accessibilityLabel="Já li este artigo"
+                  hitSlop={6}
+                  style={({ pressed }) => ({
+                    backgroundColor: colors['primary-tint'],
+                    borderColor: colors['primary-light'],
+                    borderWidth: 1,
+                    borderRadius: radius.pill,
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    transform: [{ scale: pressed ? 0.95 : 1 }],
+                  })}
+                >
+                  <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: colors.primary }}>
+                    Já li →
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            {/* Previa apagada dos botoes de avaliacao, como na web: mostra o
+                que vem a seguir sem deixar tocar. */}
+            <View style={{ flexDirection: 'row', gap: 10, opacity: 0.4 }} pointerEvents="none">
+              <View style={{ flex: 1 }}>
+                <PushButton label="Fácil" variant="success" onPress={() => {}} disabled />
+              </View>
+              <View style={{ flex: 1 }}>
+                <PushButton label="Médio" variant="primary" onPress={() => {}} disabled />
+              </View>
+              <View style={{ flex: 1 }}>
+                <PushButton label="Difícil" variant="danger" onPress={() => {}} disabled />
+              </View>
+            </View>
           </View>
         ) : null}
       </ScrollView>
+
+      {/* ── Barra de feedback da resposta ──────────────────────────────────
+          Fica ancorada no rodape, fora do ScrollView: em questao longa o
+          resultado apareceria abaixo da dobra se rolasse junto. */}
+      {answerResult ? (
+        <SlideUp
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            paddingHorizontal: 16,
+            paddingTop: 12,
+            paddingBottom: insets.bottom + 12,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: answerResult.correto ? colors.success : colors.danger,
+              borderColor: answerResult.correto ? colors['success-dark'] : colors['danger-dark'],
+              borderWidth: 2,
+              borderBottomWidth: 4,
+              borderRadius: radius.lg,
+              padding: 16,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  backgroundColor: 'rgba(255,255,255,0.2)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Ionicons
+                  name={answerResult.correto ? 'checkmark' : 'close'}
+                  size={22}
+                  color="#FFFFFF"
+                />
+              </View>
+
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontFamily: fonts.displayBold, fontSize: 16, color: '#FFFFFF' }}>
+                  {answerResult.correto ? 'Mandou bem! 🎉' : 'Não foi dessa vez 😔'}
+                </Text>
+                {!answerResult.correto ? (
+                  <Text
+                    style={{
+                      fontFamily: fonts.bodyBold,
+                      fontSize: 12,
+                      color: 'rgba(255,255,255,0.9)',
+                      marginTop: 2,
+                    }}
+                  >
+                    Certo: {answerResult.resposta_correta}
+                  </Text>
+                ) : answerResult.xp_bonus > 0 ? (
+                  <Text
+                    style={{
+                      fontFamily: fonts.bodyBold,
+                      fontSize: 12,
+                      color: 'rgba(255,255,255,0.9)',
+                      marginTop: 2,
+                    }}
+                  >
+                    +{answerResult.xp_bonus} XP bônus!
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setAnswerResult(null);
+                setSelectedAnswer(null);
+                setStep('evaluation');
+              }}
+              style={({ pressed }) => ({
+                backgroundColor: '#FFFFFF',
+                borderRadius: radius.lg,
+                paddingHorizontal: 20,
+                paddingVertical: 10,
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+              })}
+            >
+              <Text
+                style={{
+                  fontFamily: fonts.displayBold,
+                  fontSize: 14,
+                  color: answerResult.correto ? colors['success-dark'] : colors['danger-dark'],
+                }}
+              >
+                Continuar
+              </Text>
+            </Pressable>
+          </View>
+        </SlideUp>
+      ) : null}
 
       {/* Toast de XP */}
       {xpToast !== null ? (

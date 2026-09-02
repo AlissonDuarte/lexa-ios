@@ -23,6 +23,11 @@ import type {
   LoginPayload,
   RankingEntry,
   RegisterPayload,
+  RoadmapComment,
+  RoadmapIdea,
+  RoadmapIdeaPayload,
+  RoadmapStats,
+  RoadmapVoteResponse,
   ShowItemResponse,
   User,
 } from './types';
@@ -202,6 +207,19 @@ export const api = {
 
   // Notifications
   getNotifications: () => request<Record<string, unknown>[]>('/notifications/'),
+
+  // Roadmap
+  getRoadmapIdeas: () => publicRequest<RoadmapIdea[]>('/roadmap/ideas/'),
+  getRoadmapStats: () => publicRequest<RoadmapStats>('/roadmap/stats/'),
+  getRoadmapComments: (id: number) =>
+    publicRequest<RoadmapComment[]>(`/roadmap/ideas/${id}/comments/`),
+  // As tres abaixo exigem sessao: o backend responde 401 sem token.
+  createRoadmapIdea: (body: RoadmapIdeaPayload) =>
+    request<RoadmapIdea>('/roadmap/ideas/', { method: 'POST', body }),
+  voteRoadmapIdea: (id: number) =>
+    request<RoadmapVoteResponse>(`/roadmap/ideas/${id}/vote/`, { method: 'POST' }),
+  addRoadmapComment: (id: number, text: string) =>
+    request<RoadmapComment>(`/roadmap/ideas/${id}/comments/`, { method: 'POST', body: { text } }),
 };
 
 export { BASE_URL };

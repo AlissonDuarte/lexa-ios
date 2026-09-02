@@ -56,24 +56,25 @@ export function Flicker({ children, style }: MotionProps) {
 }
 
 /**
- * `lexaSway`: rotate(-3deg) translateY(2px) <-> rotate(3deg) translateY(-2px),
- * 3s, infinito. O mascote.
+ * `slideUp`: opacity 0 -> 1 com translateY 12px -> 0, 300ms, uma vez.
+ * Entrada da barra de feedback e dos blocos de passo.
  */
-export function Sway({ children, style }: MotionProps) {
+export function SlideUp({ children, style, delay = 0 }: MotionProps) {
   const t = useSharedValue(0);
   const reduced = useReducedMotion();
 
   useEffect(() => {
-    if (reduced) return;
-    t.value = withRepeat(withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) }), -1, true);
+    if (reduced) {
+      t.value = 1;
+      return;
+    }
+    t.value = withDelay(delay, withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) }));
     return () => cancelAnimation(t);
-  }, [reduced, t]);
+  }, [delay, reduced, t]);
 
   const animated = useAnimatedStyle(() => ({
-    transform: [
-      { rotate: `${-3 + t.value * 6}deg` },
-      { translateY: 2 - t.value * 4 },
-    ],
+    opacity: t.value,
+    transform: [{ translateY: 12 * (1 - t.value) }],
   }));
 
   return <Animated.View style={[style, animated]}>{children}</Animated.View>;

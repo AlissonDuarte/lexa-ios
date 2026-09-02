@@ -8,7 +8,8 @@ import { api } from '../../src/api/client';
 import type { Gamification } from '../../src/api/types';
 import { useAuth } from '../../src/auth/AuthContext';
 import { GameTopBar } from '../../src/components/GameTopBar';
-import { Flicker, Pop, Sway } from '../../src/components/motion';
+import { Mascot } from '../../src/components/Mascot';
+import { Flicker, Pop } from '../../src/components/motion';
 import { colors, fonts, radius } from '../../src/theme/tokens';
 
 /**
@@ -327,9 +328,7 @@ export default function Sequencia() {
                 gap: 12,
               }}
             >
-              <Sway>
-                <Text style={{ fontSize: 56 }}>🐱</Text>
-              </Sway>
+              <Mascot size={72} variant="happy" />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={{ fontFamily: fonts.display, fontSize: 15, color: colors.text }}>
                   {msgRecord}
