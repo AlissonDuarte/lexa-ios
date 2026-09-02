@@ -42,6 +42,10 @@ jobs:
       # scheme do callback) e no bundle JS. Vazios = botao escondido.
       EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
       EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID }}
+      # Vira o entitlement aps-environment no prebuild. Sem isto o default do
+      # app.config.ts e 'development', e um TestFlight assinado assim registra
+      # no APNs, recebe device token e nunca entrega nada — sem erro nenhum.
+      APS_ENVIRONMENT: production
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -118,12 +122,17 @@ jobs:
       # Prova que os dois plugins nativos entraram: o URL scheme do callback do
       # Google e o entitlement do Sign in with Apple. Falhar aqui custa 2 min;
       # descobrir no TestFlight custa um ciclo de review.
-      - name: Conferir configuracao nativa do login social
+      - name: Conferir configuracao nativa
         run: |
           grep -q "com.googleusercontent.apps" ios/Lexa/Info.plist \
             || { echo "::error::URL scheme do Google ausente do Info.plist."; exit 1; }
           grep -q "com.apple.developer.applesignin" ios/Lexa/Lexa.entitlements \
             || { echo "::error::Entitlement do Sign in with Apple ausente."; exit 1; }
+          # Nao basta o entitlement existir: com o valor 'development' o build
+          # sai verde e o push some em silencio no TestFlight.
+          grep -A1 "aps-environment" ios/Lexa/Lexa.entitlements | grep -q "<string>production</string>" \
+            || { echo "::error::aps-environment nao e 'production'. Confira APS_ENVIRONMENT."; \
+                 cat ios/Lexa/Lexa.entitlements; exit 1; }
 
       - uses: ruby/setup-ruby@v1
         with:

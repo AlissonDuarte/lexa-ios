@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -21,6 +22,12 @@ import { Mascot } from '../../src/components/Mascot';
 import { Pressed } from '../../src/components/Pressed';
 import { GrowBar, Pop } from '../../src/components/motion';
 import { PushButton } from '../../src/components/PushButton';
+import {
+  disablePush,
+  getPushState,
+  registerForPush,
+  type PushState,
+} from '../../src/push/registerDevice';
 import { colors, fonts, radius } from '../../src/theme/tokens';
 
 /** Porte de frontend/src/routes/perfil/+page.svelte. */
@@ -163,6 +170,40 @@ export default function Perfil() {
       earnedCount: achievements.filter((a) => a.earned).length,
     };
   }, [achievements]);
+
+  // `status` e a permissao do iOS; `enabled` e o valor do toggle. Sao coisas
+  // diferentes: quem desliga o toggle continua com a permissao concedida.
+  const [push, setPush] = useState<PushState>({ status: 'undetermined', enabled: false });
+  const [savingPush, setSavingPush] = useState(false);
+
+  useEffect(() => {
+    void getPushState().then(setPush);
+  }, []);
+
+  async function toggleNotifications(value: boolean) {
+    setError(null);
+
+    // O iOS so mostra o prompt uma vez na vida da instalacao. Depois de negado,
+    // requestPermissionsAsync volta 'denied' na hora, sem nada aparecer na tela
+    // — o unico caminho de volta e os Ajustes do sistema.
+    if (value && push.status === 'denied') {
+      void Linking.openSettings();
+      return;
+    }
+
+    setSavingPush(true);
+    try {
+      // force: o usuario esta pedindo para religar, entao um opt-out anterior
+      // nao pode barrar.
+      if (value) await registerForPush({ force: true });
+      else await disablePush();
+      setPush(await getPushState());
+    } catch {
+      setError('Não foi possível salvar a preferência.');
+    } finally {
+      setSavingPush(false);
+    }
+  }
 
   async function togglePrivacy(value: boolean) {
     if (!user) return;
@@ -461,6 +502,37 @@ export default function Perfil() {
             {earnedCount} de {achievements.length} conquistas desbloqueadas
           </Text>
         </View>
+
+        {/* ── Lembretes ─────────────────────────────────────────────────── */}
+        {push.status !== 'unsupported' ? (
+          <Card>
+            <View
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+            >
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: colors.text }}>
+                  Lembretes diários
+                </Text>
+                <Text
+                  style={{ fontFamily: fonts.body, fontSize: 12, color: colors.muted, marginTop: 2 }}
+                >
+                  {push.status === 'denied'
+                    ? 'Notificações bloqueadas — toque para abrir os Ajustes.'
+                    : 'Um empurrãozinho quando a sequência do dia estiver aberta.'}
+                </Text>
+              </View>
+              {savingPush ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Switch
+                  value={push.enabled}
+                  onValueChange={toggleNotifications}
+                  trackColor={{ true: colors.primary, false: colors.border }}
+                />
+              )}
+            </View>
+          </Card>
+        ) : null}
 
         {/* ── Privacidade ────────────────────────────────────────────────── */}
         <Card>

@@ -207,6 +207,21 @@ export const api = {
 
   // Notifications
   getNotifications: () => request<Record<string, unknown>[]>('/notifications/'),
+  /**
+   * `environment` diz ao backend em qual APNs o token foi emitido: build de
+   * Metro fala com o sandbox, TestFlight e loja com o de producao. E uma dica —
+   * o backend corrige a linha sozinho se ela vier errada.
+   */
+  registerDeviceToken: (token: string, environment: 'sandbox' | 'production') =>
+    request<unknown>('/notifications/device/register/', {
+      method: 'POST',
+      body: { token, platform: 'ios', environment },
+    }),
+  unregisterDeviceToken: (token: string) =>
+    request<unknown>('/notifications/device/unregister/', {
+      method: 'DELETE',
+      body: { token },
+    }),
 
   // Roadmap
   getRoadmapIdeas: () => publicRequest<RoadmapIdea[]>('/roadmap/ideas/'),

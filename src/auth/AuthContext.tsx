@@ -19,6 +19,7 @@ import React, {
 import { api, setTokenRefreshedHandler, setTokens, setUnauthorizedHandler } from '../api/client';
 import type { AuthResponse, User } from '../api/types';
 import { signOutFromGoogle } from './googleSignIn';
+import { unregisterFromPush } from '../push/registerDevice';
 import { clearSession, loadSession, saveTokens, saveUser } from './tokenStore';
 
 interface AuthState {
@@ -50,6 +51,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // Antes de limpar a sessao, enquanto o Bearer ainda vale: sem isto o
+    // aparelho continua recebendo os lembretes do dono anterior.
+    await unregisterFromPush();
     setTokens(null, null);
     await clearSession();
     // Sem isto o SDK do Google guarda a conta e o proximo toque no botao

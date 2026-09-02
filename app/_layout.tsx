@@ -17,6 +17,7 @@ import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '../src/auth/AuthContext';
+import { usePushNotifications } from '../src/push/usePushNotifications';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -30,6 +31,10 @@ function RouteGuard() {
   const { token, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  // Aqui dentro por dois motivos: precisa do AuthProvider acima (o registro so
+  // vale com sessao) e do router, para o toque na notificacao navegar.
+  usePushNotifications();
 
   useEffect(() => {
     if (loading) return;

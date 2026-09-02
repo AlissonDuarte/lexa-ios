@@ -19,6 +19,18 @@ const isCleartextApi = apiUrl.startsWith('http://');
  * Sem client ID configurado o plugin nao entra: o build segue normalmente e o
  * botao some da tela (ver src/auth/googleSignIn.ts).
  */
+/**
+ * Ambiente do APNs gravado no entitlement aps-environment.
+ *
+ * 'development' aponta o app para o APNs sandbox; 'production' para o real. Os
+ * dois registram e devolvem um device token normalmente — o erro so aparece do
+ * outro lado: um build de TestFlight assinado com 'development' recebe token,
+ * manda pro backend e nunca entrega nada, sem log nenhum no aparelho dizendo
+ * por que. Por isso o CI exporta APS_ENVIRONMENT=production explicitamente
+ * (ver .github/workflows/ios.yml) e o default local e o sandbox.
+ */
+const apsEnvironment = process.env.APS_ENVIRONMENT === 'production' ? 'production' : 'development';
+
 const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
 const googleIosUrlScheme = googleIosClientId.endsWith('.apps.googleusercontent.com')
   ? `com.googleusercontent.apps.${googleIosClientId.replace('.apps.googleusercontent.com', '')}`
@@ -39,6 +51,12 @@ const config: ExpoConfig = {
     // Escreve o entitlement com.apple.developer.applesignin no prebuild. Sem
     // ele o botao da Apple aparece e o signInAsync falha na hora.
     usesAppleSignIn: true,
+    // Declarado aqui em vez de deixar a cargo do plugin do expo-notifications:
+    // e o mesmo motivo do usesAppleSignIn acima — o entitlement que sai do
+    // prebuild fica visivel no config, e o CI consegue conferir o valor.
+    entitlements: {
+      'aps-environment': apsEnvironment,
+    },
     infoPlist: {
       ...(isCleartextApi
         ? {
@@ -67,6 +85,10 @@ const config: ExpoConfig = {
     // Sem condicional, diferente do Google: nao ha client ID para configurar, e
     // a disponibilidade e decidida em runtime por isAvailableAsync().
     'expo-apple-authentication',
+    // Registra o app no APNs e entrega o device token. Sem
+    // enableBackgroundRemoteNotifications: as notificacoes sao puramente de
+    // alerta, o app nao roda codigo em background ao receber uma.
+    'expo-notifications',
     // No SDK 57 a splash deixou de ser chave de topo e virou config do plugin.
     [
       'expo-splash-screen',

@@ -19,6 +19,7 @@ import type { MascotVariant } from '../src/components/Mascot';
 import { SlideUp } from '../src/components/motion';
 import { Pressed } from '../src/components/Pressed';
 import { PushButton } from '../src/components/PushButton';
+import { registerForPush } from '../src/push/registerDevice';
 import { colors, fonts, radius } from '../src/theme/tokens';
 
 /**
@@ -225,6 +226,22 @@ export default function Leitura() {
       setSubmitting(false);
     }
   }
+
+  /**
+   * Pedido de permissao de notificacao, no fim da sequencia.
+   *
+   * Nao no boot: o iOS so mostra esse prompt UMA vez na vida da instalacao, e
+   * quem nega nunca mais o ve — o unico caminho de volta e os Ajustes. Entao
+   * ele e gasto aqui, no momento em que o usuario acabou de concluir o dia e
+   * ver valor, e nao na primeira tela, antes de o app ter provado nada.
+   *
+   * registerForPush e idempotente: se a permissao ja foi decidida (concedida ou
+   * negada), ele nao abre prompt nenhum.
+   */
+  useEffect(() => {
+    if (!completion?.sequencia_concluida) return;
+    void registerForPush();
+  }, [completion?.sequencia_concluida]);
 
   async function evaluate(avaliacao: Avaliacao) {
     if (!current || submitting) return;

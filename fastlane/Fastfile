@@ -26,15 +26,35 @@ platform :ios do
   # falha explicando. Le o profile que o match ACABOU de instalar, entao mede a
   # coisa certa: o que esta guardado no repo de certificados, e nao o que o App
   # ID tem no portal.
-  def verify_apple_signin_profile
+  # Cada entrada e [entitlement no profile, nome no portal, instrucao do passo 1].
+  REQUIRED_CAPABILITIES = [
+    [
+      'com.apple.developer.applesignin',
+      'Sign In with Apple',
+      'marque "Sign In with Apple", clique em Edit/Configure e escolha ' \
+      '"Enable as a primary App ID"',
+    ],
+    [
+      'aps-environment',
+      'Push Notifications',
+      'marque "Push Notifications"',
+    ],
+  ].freeze
+
+  def verify_profile_capabilities
     path = ENV["sigh_#{APP_IDENTIFIER}_appstore_profile-path"]
     UI.user_error!('O match nao exportou o caminho do profile.') if path.to_s.empty?
 
-    plist = sh('security', 'cms', '-D', '-i', path, log: false)
-    return if plist.force_encoding('BINARY').include?('com.apple.developer.applesignin')
+    plist = sh('security', 'cms', '-D', '-i', path, log: false).force_encoding('BINARY')
+
+    missing = REQUIRED_CAPABILITIES.reject { |entitlement, _, _| plist.include?(entitlement) }
+    return if missing.empty?
+
+    nomes = missing.map { |_, nome, _| nome }.join(' e ')
+    passos = missing.map { |_, _, instrucao| "           #{instrucao}" }.join(";\n")
 
     UI.user_error!(<<~MSG)
-      O provisioning profile guardado nao tem a capability Sign In with Apple.
+      O provisioning profile guardado nao tem #{nomes}.
 
       O profile e gerado a partir das capabilities que o App ID tinha no momento
       em que ele nasceu, e aqui o match roda em readonly: ele so baixa o que ja
@@ -43,8 +63,8 @@ platform :ios do
 
       Na ordem:
         1. developer.apple.com > Certificates, Identifiers & Profiles >
-           Identifiers > #{APP_IDENTIFIER}: marque "Sign In with Apple",
-           clique em Edit/Configure, escolha "Enable as a primary App ID",
+           Identifiers > #{APP_IDENTIFIER}:
+#{passos}
            e SALVE — a confirmacao e um passo separado, e sem ela nao persiste.
         2. Rode o workflow ios-credentials.yml. E ele que regenera o profile
            (lane `certificates`: readonly false + force true).
@@ -53,6 +73,7 @@ platform :ios do
       Se o passo 2 ja rodou depois do passo 1 e este erro continua, entao o
       problema esta no passo 1: a capability nao ficou salva no App ID.
 
+      Faltando: #{missing.map(&:first).join(', ')}
       Profile conferido: #{path}
     MSG
   end
@@ -85,7 +106,7 @@ platform :ios do
       api_key: asc_key,
       readonly: true
     )
-    verify_apple_signin_profile
+    verify_profile_capabilities
     disable_automatic_code_signing(path: 'ios/Lexa.xcodeproj')
     update_code_signing_settings(
       use_automatic_signing: false,
@@ -123,7 +144,7 @@ platform :ios do
       api_key: key,
       readonly: true
     )
-    verify_apple_signin_profile
+    verify_profile_capabilities
 
     disable_automatic_code_signing(path: 'ios/Lexa.xcodeproj')
     update_code_signing_settings(
