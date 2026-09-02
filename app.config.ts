@@ -36,6 +36,9 @@ const config: ExpoConfig = {
     supportsTablet: true,
     bundleIdentifier: 'com.lexaclub.app',
     appleTeamId: process.env.APPLE_TEAM_ID,
+    // Escreve o entitlement com.apple.developer.applesignin no prebuild. Sem
+    // ele o botao da Apple aparece e o signInAsync falha na hora.
+    usesAppleSignIn: true,
     infoPlist: {
       ...(isCleartextApi
         ? {
@@ -61,6 +64,9 @@ const config: ExpoConfig = {
     'expo-router',
     'expo-secure-store',
     'expo-font',
+    // Sem condicional, diferente do Google: nao ha client ID para configurar, e
+    // a disponibilidade e decidida em runtime por isAvailableAsync().
+    'expo-apple-authentication',
     // No SDK 57 a splash deixou de ser chave de topo e virou config do plugin.
     [
       'expo-splash-screen',

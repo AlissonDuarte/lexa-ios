@@ -13,7 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../src/api/client';
 import { ApiError } from '../../src/api/types';
 import { useAuth } from '../../src/auth/AuthContext';
+import { useAppleAuth } from '../../src/auth/useAppleAuth';
 import { useGoogleAuth } from '../../src/auth/useGoogleAuth';
+import { AppleButton } from '../../src/components/AppleButton';
 import { Field } from '../../src/components/Field';
 import { GoogleButton, OrDivider } from '../../src/components/GoogleButton';
 import { PushButton } from '../../src/components/PushButton';
@@ -28,9 +30,10 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const google = useGoogleAuth(setError);
+  const apple = useAppleAuth(setError);
 
   const canSubmit =
-    username.trim().length > 0 && password.length > 0 && !submitting && !google.busy;
+    username.trim().length > 0 && password.length > 0 && !submitting && !google.busy && !apple.busy;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -132,10 +135,27 @@ export default function Login() {
           <PushButton label="Entrar" onPress={handleSubmit} disabled={!canSubmit} />
         )}
 
-        {google.available ? (
+        {apple.available || google.available ? (
           <>
             <OrDivider />
-            <GoogleButton onPress={google.start} loading={google.busy} disabled={submitting} />
+            {/* Apple acima do Google: a HIG pede proeminencia ao menos
+                equivalente a dos outros provedores. */}
+            {apple.available ? (
+              <View style={{ marginBottom: google.available ? 12 : 0 }}>
+                <AppleButton
+                  onPress={apple.start}
+                  loading={apple.busy}
+                  disabled={submitting || google.busy}
+                />
+              </View>
+            ) : null}
+            {google.available ? (
+              <GoogleButton
+                onPress={google.start}
+                loading={google.busy}
+                disabled={submitting || apple.busy}
+              />
+            ) : null}
           </>
         ) : null}
 

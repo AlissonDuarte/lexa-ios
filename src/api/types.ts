@@ -53,6 +53,17 @@ export interface AuthResponse {
   refresh: string;
 }
 
+/**
+ * Nome e e-mail que a Apple entrega uma unica vez, na primeira autorizacao.
+ * Todos opcionais de proposito: nas entradas seguintes nao vem nada, e o campo
+ * ausente e o que diz ao backend para nao sobrescrever o que ja esta gravado.
+ */
+export interface AppleProfile {
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+}
+
 export interface RegisterPayload {
   username: string;
   email: string;

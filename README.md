@@ -96,6 +96,13 @@ gastar minuto de macOS.
 O botão "Continuar com o Google" só aparece quando os dois client IDs estão
 configurados; sem eles o app funciona normalmente, só com usuário e senha.
 
+Isso é o certo dentro do app — melhor nenhum botão do que um que só falharia ao
+ser tocado —, mas foi exatamente o que já fez sair um TestFlight sem login
+social, sem erro nenhum no log: o `.env` não é versionado, então numa build de
+CI os valores só chegam pelos **secrets do repositório**. Por isso `ios.yml`
+agora confere os secrets antes do prebuild e o Info.plist depois dele, e falha
+o build em vez de esconder o botão.
+
 1. No Google Cloud Console (**APIs e serviços › Credenciais**), no mesmo projeto
    que já atende o site, crie um **client ID OAuth do tipo iOS** com o bundle
    `com.lexaclub.app`.
@@ -103,13 +110,41 @@ configurados; sem eles o app funciona normalmente, só com usuário e senha.
    `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` com o client **web** que o site já usa
    (`PUBLIC_GOOGLE_CLIENT_ID`). O URL scheme do callback é derivado do client
    iOS automaticamente, em `app.config.ts`.
-3. No backend, `GOOGLE_CLIENT_ID` precisa aceitar **os dois** client IDs. Hoje
-   `apps/users/views.py` passa um único ID como audiência para
-   `id_token.verify_oauth2_token`; o token vindo do iOS traz o client iOS no
-   `aud` e é rejeitado com 401. A lib aceita lista — basta passar uma.
+3. No backend, `GOOGLE_CLIENT_ID` e `GOOGLE_IOS_CLIENT_ID` são passados **os
+   dois** como audiência para `id_token.verify_oauth2_token`
+   (`apps/users/views.py`), porque o `aud` do token muda conforme a origem: o
+   site manda o client web e o app manda o client iOS.
 
 O módulo é **nativo**: não funciona no Expo Go. Em desenvolvimento use um
 development build (`npx expo run:ios`) para testar esta tela.
+
+### Sign in with Apple
+
+Obrigatório pela **Guideline 4.8** da App Store: um app que oferece login social
+de terceiros (aqui, o Google) precisa oferecer o da Apple também.
+
+Diferente do Google, não há client ID para configurar — o `aud` do identity
+token é o próprio bundle (`com.lexaclub.app`), então o botão não depende de
+secret nenhum. A disponibilidade é decidida em runtime por
+`AppleAuthentication.isAvailableAsync()`: aparece no iOS 13+, some no Android.
+
+O que precisa de atenção é a **assinatura**. `usesAppleSignIn: true` faz o
+prebuild escrever o entitlement `com.apple.developer.applesignin`, e um
+provisioning profile sem essa capability quebra o archive. Na primeira build
+depois desta mudança, nesta ordem:
+
+1. No Apple Developer portal, habilite **Sign In with Apple** no App ID
+   `com.lexaclub.app`.
+2. Rode o workflow `ios-credentials.yml` — ele chama `fastlane certificates`
+   com `readonly: false` e regenera o profile com a capability nova.
+3. Só então rode `ios.yml`. Sem o passo 2, o `match(readonly: true)` devolve o
+   profile antigo e o build falha na assinatura.
+
+Nome e e-mail só chegam na **primeira** autorização de cada usuário; depois
+disso a Apple manda apenas o `sub`. É por isso que o app envia esses campos no
+corpo do `POST /auth/apple/` e o backend só os usa ao criar a conta.
+
+O módulo também é nativo: não funciona no Expo Go.
 
 ### Secrets necessários
 

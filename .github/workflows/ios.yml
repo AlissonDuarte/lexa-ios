@@ -57,6 +57,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # O app esconde o botao do Google quando o client ID nao chega ao bundle
+      # (ver src/auth/googleSignIn.ts). Dentro do app isso e o certo — melhor
+      # nenhum botao do que um que so falharia ao ser tocado. Numa build de
+      # release e o oposto: o TestFlight sairia sem login social e sem nenhum
+      # erro no log. Entao aqui a falta de secret quebra o build, cedo.
+      - name: Conferir configuracao do login social
+        run: |
+          fail=0
+          for var in EXPO_PUBLIC_API_URL EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Secret $var vazio ou ausente nas configuracoes do repositorio."
+              fail=1
+            fi
+          done
+          # app.config.ts deriva o reversed client ID com endsWith(...): um valor
+          # truncado nao entra no plugin e o callback do OAuth some do Info.plist,
+          # sem aviso nenhum.
+          case "$EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID" in
+            *.apps.googleusercontent.com) ;;
+            *) echo "::error::EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID nao termina em .apps.googleusercontent.com."; fail=1 ;;
+          esac
+          [ "$fail" = 0 ]
+
       # Escolha explicita do Xcode: imagens de runner trazem varias versoes e o
       # default nem sempre e a mais nova. Com Xcode 16 o archive morre la na
       # frente com "Could not resolve package dependencies", 15 min depois.
@@ -91,6 +114,16 @@ jobs:
       # Continuous native generation: ios/ nao e versionado, nasce aqui.
       - name: Gerar projeto iOS (expo prebuild)
         run: npx expo prebuild --platform ios
+
+      # Prova que os dois plugins nativos entraram: o URL scheme do callback do
+      # Google e o entitlement do Sign in with Apple. Falhar aqui custa 2 min;
+      # descobrir no TestFlight custa um ciclo de review.
+      - name: Conferir configuracao nativa do login social
+        run: |
+          grep -q "com.googleusercontent.apps" ios/Lexa/Info.plist \
+            || { echo "::error::URL scheme do Google ausente do Info.plist."; exit 1; }
+          grep -q "com.apple.developer.applesignin" ios/Lexa/Lexa.entitlements \
+            || { echo "::error::Entitlement do Sign in with Apple ausente."; exit 1; }
 
       - uses: ruby/setup-ruby@v1
         with:

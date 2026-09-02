@@ -11,6 +11,7 @@
 import { ApiError } from './types';
 import type {
   AnswerItemResponse,
+  AppleProfile,
   AuthResponse,
   Avaliacao,
   CompleteItemResponse,
@@ -153,6 +154,16 @@ export const api = {
   /** `credential` e o ID token do Google (mesmo contrato do GIS na web). */
   googleAuth: (credential: string) =>
     publicRequest<AuthResponse>('/auth/google/', { method: 'POST', body: { credential } }),
+  /**
+   * `identityToken` e o JWT da Apple. O `profile` vai junto porque nome e
+   * e-mail so existem na primeira autorizacao — depois disso o backend nao
+   * teria de onde tirar.
+   */
+  appleAuth: (identityToken: string, profile: AppleProfile) =>
+    publicRequest<AuthResponse>('/auth/apple/', {
+      method: 'POST',
+      body: { identity_token: identityToken, ...profile },
+    }),
   me: () => request<User>('/auth/me/'),
   updatePrivacy: (perfil_privado: boolean) =>
     request<User>('/auth/me/privacy/', { method: 'PATCH', body: { perfil_privado } }),
