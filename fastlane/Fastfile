@@ -21,15 +21,22 @@ platform :ios do
     )
   end
 
-  desc 'Bootstrap: cria certificado e provisioning profile e guarda no repo de certs.'
-  desc 'Rodar UMA vez, pelo workflow mobile-ios-credentials.yml (workflow_dispatch).'
+  desc 'Cria/renova certificado e provisioning profile e guarda no repo de certs.'
+  desc 'Rodar no bootstrap E sempre que uma capability mudar no App ID.'
   lane :certificates do
     setup_ci
     match(
       type: 'appstore',
       app_identifier: APP_IDENTIFIER,
       api_key: asc_key,
-      readonly: false
+      readonly: false,
+      # Sem force, o match ve que o profile guardado ainda e valido e o
+      # reaproveita — a validacao dele nao olha capabilities. Ou seja: habilitar
+      # uma capability no App ID e rodar este lane nao bastaria, o profile
+      # incompleto continuaria no lugar e o archive seguiria falhando com
+      # "doesn't include the ... entitlement". Regerar profile e barato e nao
+      # revoga certificado, entao aqui e sempre.
+      force: true
     )
   end
 

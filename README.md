@@ -136,9 +136,18 @@ depois desta mudança, nesta ordem:
 1. No Apple Developer portal, habilite **Sign In with Apple** no App ID
    `com.lexaclub.app`.
 2. Rode o workflow `ios-credentials.yml` — ele chama `fastlane certificates`
-   com `readonly: false` e regenera o profile com a capability nova.
+   com `readonly: false` e `force: true`, regenerando o profile com a
+   capability nova.
 3. Só então rode `ios.yml`. Sem o passo 2, o `match(readonly: true)` devolve o
-   profile antigo e o build falha na assinatura.
+   profile antigo e o archive falha com *"Provisioning profile ... doesn't
+   include the com.apple.developer.applesignin entitlement"*.
+
+A ordem importa e o `force: true` também. O profile é gerado a partir das
+capabilities que o App ID tem **no momento em que nasce**: rodar o passo 2 antes
+do 1 só regenera o mesmo profile incompleto, e sem `force` o `match` nem
+regenera — ele vê que o profile guardado ainda é válido (ele não olha
+capabilities), diz "All required keys, certificates and provisioning profiles
+are installed 🙌" e o build seguinte falha idêntico.
 
 Nome e e-mail só chegam na **primeira** autorização de cada usuário; depois
 disso a Apple manda apenas o `sub`. É por isso que o app envia esses campos no
