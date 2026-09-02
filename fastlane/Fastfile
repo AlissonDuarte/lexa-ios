@@ -21,6 +21,42 @@ platform :ios do
     )
   end
 
+  # O archive so reclama de capability faltando ~30s depois de comecar, com um
+  # texto que nao diz o que fazer. Este check custa 1s, roda logo apos o match e
+  # falha explicando. Le o profile que o match ACABOU de instalar, entao mede a
+  # coisa certa: o que esta guardado no repo de certificados, e nao o que o App
+  # ID tem no portal.
+  def verify_apple_signin_profile
+    path = ENV["sigh_#{APP_IDENTIFIER}_appstore_profile-path"]
+    UI.user_error!('O match nao exportou o caminho do profile.') if path.to_s.empty?
+
+    plist = sh('security', 'cms', '-D', '-i', path, log: false)
+    return if plist.force_encoding('BINARY').include?('com.apple.developer.applesignin')
+
+    UI.user_error!(<<~MSG)
+      O provisioning profile guardado nao tem a capability Sign In with Apple.
+
+      O profile e gerado a partir das capabilities que o App ID tinha no momento
+      em que ele nasceu, e aqui o match roda em readonly: ele so baixa o que ja
+      esta no repo de certificados. Habilitar a capability no portal nao muda um
+      profile que ja existe.
+
+      Na ordem:
+        1. developer.apple.com > Certificates, Identifiers & Profiles >
+           Identifiers > #{APP_IDENTIFIER}: marque "Sign In with Apple",
+           clique em Edit/Configure, escolha "Enable as a primary App ID",
+           e SALVE — a confirmacao e um passo separado, e sem ela nao persiste.
+        2. Rode o workflow ios-credentials.yml. E ele que regenera o profile
+           (lane `certificates`: readonly false + force true).
+        3. Rode este build de novo.
+
+      Se o passo 2 ja rodou depois do passo 1 e este erro continua, entao o
+      problema esta no passo 1: a capability nao ficou salva no App ID.
+
+      Profile conferido: #{path}
+    MSG
+  end
+
   desc 'Cria/renova certificado e provisioning profile e guarda no repo de certs.'
   desc 'Rodar no bootstrap E sempre que uma capability mudar no App ID.'
   lane :certificates do
@@ -49,6 +85,7 @@ platform :ios do
       api_key: asc_key,
       readonly: true
     )
+    verify_apple_signin_profile
     disable_automatic_code_signing(path: 'ios/Lexa.xcodeproj')
     update_code_signing_settings(
       use_automatic_signing: false,
@@ -86,6 +123,7 @@ platform :ios do
       api_key: key,
       readonly: true
     )
+    verify_apple_signin_profile
 
     disable_automatic_code_signing(path: 'ios/Lexa.xcodeproj')
     update_code_signing_settings(

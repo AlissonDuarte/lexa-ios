@@ -4,8 +4,8 @@ import { Tabs } from 'expo-router';
 import { colors, fonts } from '../../src/theme/tokens';
 
 /**
- * Tab bar do v1: 3 abas. A web tem 4 (inclui Liga/ranking), que entra no v2
- * junto com conquistas e roadmap.
+ * Tab bar espelhando a da web: Inicio, Sequencia, Liga e Perfil, nesta ordem
+ * (frontend/src/components/game/GameBottomNav.svelte).
  */
 export default function TabsLayout() {
   return (
@@ -34,6 +34,13 @@ export default function TabsLayout() {
         options={{
           title: 'Sequência',
           tabBarIcon: ({ color, size }) => <Ionicons name="flame" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="liga"
+        options={{
+          title: 'Liga',
+          tabBarIcon: ({ color, size }) => <Ionicons name="trophy" color={color} size={size} />,
         }}
       />
       <Tabs.Screen

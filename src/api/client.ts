@@ -10,12 +10,14 @@
  */
 import { ApiError } from './types';
 import type {
+  Achievement,
   AnswerItemResponse,
   AppleProfile,
   AuthResponse,
   Avaliacao,
   CompleteItemResponse,
   DailySequence,
+  Gamification,
   Law,
   LawArticle,
   LoginPayload,
@@ -193,10 +195,10 @@ export const api = {
 
   // Gamification
   getRanking: () => request<RankingEntry[]>('/gamification/ranking/'),
-  getMyGamification: () => request<Record<string, unknown>>('/gamification/me/'),
+  getMyGamification: () => request<Gamification>('/gamification/me/'),
 
   // Achievements
-  getAchievements: () => request<Record<string, unknown>>('/achievements/'),
+  getAchievements: () => request<Achievement[]>('/achievements/'),
 
   // Notifications
   getNotifications: () => request<Record<string, unknown>[]>('/notifications/'),

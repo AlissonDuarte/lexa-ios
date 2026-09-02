@@ -216,11 +216,49 @@ export interface CompleteItemResponse {
 export interface RankingEntry {
   id: number;
   username: string;
+  /** O backend manda; a web prefere o first_name e cai no username. */
+  first_name?: string;
+  last_name?: string;
   xp: number;
   tier: Tier;
   streak_atual: number;
   posicao: number;
   perfil_privado?: boolean;
+}
+
+/** Resposta de /gamification/me/. */
+export interface Gamification {
+  xp: number;
+  tier: Tier;
+  streak_atual: number;
+  streak_maximo: number;
+  posicao_ranking: number;
+  /** null no tier maximo (diamante). */
+  proximo_tier: Tier | null;
+  xp_proximo_tier: number | null;
+  xp_atual_tier: number;
+  is_premium: boolean;
+  streak_shields: number;
+  logs_recentes: { acao: string; xp: number; criado_em: string }[];
+}
+
+/** Item de /achievements/ — o catalogo inteiro, com o que foi conquistado. */
+export interface Achievement {
+  slug: string;
+  /** '???' quando a badge e secreta e ainda nao foi conquistada. */
+  nome: string;
+  descricao: string;
+  categoria: string;
+  categoria_label: string;
+  raridade: string;
+  raridade_label: string;
+  /** '🔒' no lugar do emoji real enquanto uma badge secreta nao cai. */
+  emoji: string;
+  cor: string;
+  secreto: boolean;
+  earned: boolean;
+  conquistado_em: string | null;
+  pct_usuarios: number;
 }
 
 // ── Erros ────────────────────────────────────────────────────────────────────

@@ -13,6 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../src/api/client';
 import type { DailySequence, Law, SequenceItem } from '../../src/api/types';
 import { useAuth } from '../../src/auth/AuthContext';
+import { GameTopBar } from '../../src/components/GameTopBar';
+import { PulseRing } from '../../src/components/motion';
 import { PushButton } from '../../src/components/PushButton';
 import { colors, fonts, lawMeta, radius } from '../../src/theme/tokens';
 
@@ -128,192 +130,180 @@ export default function Dashboard() {
   }
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: 40 }}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-      }
-    >
-      {/* Barra de status: XP e streak */}
-      <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          paddingHorizontal: 20,
-          marginBottom: 16,
-        }}
-      >
-        <Text style={{ fontFamily: fonts.displayBold, fontSize: 24, color: colors.text }}>
-          Olá, {user?.first_name || user?.username}
-        </Text>
-        <View style={{ flexDirection: 'row', gap: 14 }}>
-          <Stat value={user?.streak_atual ?? 0} color={colors.streak} suffix="🔥" />
-          <Stat value={user?.xp ?? 0} color={colors.gem} suffix="XP" />
-        </View>
-      </View>
+    <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
+      {/* Fixa fora do ScrollView, como na web: os contadores nao rolam junto. */}
+      <GameTopBar
+        course={meta.code}
+        courseColor={meta.color}
+        courseDark={meta.dark}
+        streak={user?.streak_atual ?? 0}
+      />
 
-      {/* Abas de lei */}
       <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 4 }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+        }
       >
-        {laws.map((law) => {
-          const m = lawMeta(law);
-          const active = law.slug === activeSlug;
-          return (
-            <Pressable
-              key={law.slug}
-              onPress={() => setActiveSlug(law.slug)}
-              style={{
-                backgroundColor: active ? m.color : colors.card,
-                borderColor: active ? m.dark : colors.border,
-                borderWidth: 2,
-                borderBottomWidth: 3,
-                borderRadius: radius.pill,
-                paddingVertical: 8,
-                paddingHorizontal: 16,
-              }}
-            >
-              <Text
+        <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+          <Text style={{ fontFamily: fonts.displayBold, fontSize: 24, color: colors.text }}>
+            Olá, {user?.first_name || user?.username}
+          </Text>
+        </View>
+
+        {/* Abas de lei */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 4 }}
+        >
+          {laws.map((law) => {
+            const m = lawMeta(law);
+            const active = law.slug === activeSlug;
+            return (
+              <Pressable
+                key={law.slug}
+                onPress={() => setActiveSlug(law.slug)}
                 style={{
-                  fontFamily: fonts.bodyBold,
-                  fontSize: 13,
-                  color: active ? '#FFFFFF' : colors['text-soft'],
+                  backgroundColor: active ? m.color : colors.card,
+                  borderColor: active ? m.dark : colors.border,
+                  borderWidth: 2,
+                  borderBottomWidth: 3,
+                  borderRadius: radius.pill,
+                  paddingVertical: 8,
+                  paddingHorizontal: 16,
                 }}
               >
-                {m.short}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+                <Text
+                  style={{
+                    fontFamily: fonts.bodyBold,
+                    fontSize: 13,
+                    color: active ? '#FFFFFF' : colors['text-soft'],
+                  }}
+                >
+                  {m.short}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
 
-      {/* Progresso da sequência do dia */}
-      <View style={{ paddingHorizontal: 20, marginTop: 20 }}>
-        <View
-          style={{
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-            borderWidth: 2,
-            borderBottomWidth: 4,
-            borderRadius: radius.lg,
-            padding: 16,
-          }}
-        >
-          <Text style={{ fontFamily: fonts.bodySemi, fontSize: 13, color: colors.muted }}>
-            {activeLaw?.nome ?? 'Sequência de hoje'}
-          </Text>
-          <Text
-            style={{
-              fontFamily: fonts.displayBold,
-              fontSize: 22,
-              color: colors.text,
-              marginTop: 2,
-            }}
-          >
-            {done} de {total} concluídos
-          </Text>
-
+        {/* Progresso da sequência do dia */}
+        <View style={{ paddingHorizontal: 20, marginTop: 20 }}>
           <View
             style={{
-              height: 12,
-              backgroundColor: colors.border,
-              borderRadius: radius.pill,
-              marginTop: 12,
-              overflow: 'hidden',
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderWidth: 2,
+              borderBottomWidth: 4,
+              borderRadius: radius.lg,
+              padding: 16,
             }}
           >
+            <Text style={{ fontFamily: fonts.bodySemi, fontSize: 13, color: colors.muted }}>
+              {activeLaw?.nome ?? 'Sequência de hoje'}
+            </Text>
+            <Text
+              style={{
+                fontFamily: fonts.displayBold,
+                fontSize: 22,
+                color: colors.text,
+                marginTop: 2,
+              }}
+            >
+              {done} de {total} concluídos
+            </Text>
+
             <View
               style={{
-                height: '100%',
-                width: total > 0 ? `${(done / total) * 100}%` : '0%',
-                backgroundColor: meta.color,
+                height: 12,
+                backgroundColor: colors.border,
                 borderRadius: radius.pill,
+                marginTop: 12,
+                overflow: 'hidden',
               }}
-            />
+            >
+              <View
+                style={{
+                  height: '100%',
+                  width: total > 0 ? `${(done / total) * 100}%` : '0%',
+                  backgroundColor: meta.color,
+                  borderRadius: radius.pill,
+                }}
+              />
+            </View>
           </View>
         </View>
-      </View>
 
-      {error ? (
-        <Text
-          style={{
-            fontFamily: fonts.body,
-            color: colors['danger-dark'],
-            textAlign: 'center',
-            marginTop: 20,
-          }}
-        >
-          {error}
-        </Text>
-      ) : null}
-
-      {/* Trilha zigzag */}
-      {sequenceLoading ? (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
-      ) : trail.length === 0 ? (
-        <Text
-          style={{
-            fontFamily: fonts.body,
-            color: colors.muted,
-            textAlign: 'center',
-            marginTop: 40,
-            paddingHorizontal: 40,
-          }}
-        >
-          Nenhuma sequência para hoje nesta lei.
-        </Text>
-      ) : (
-        <View style={{ alignItems: 'center', marginTop: 32, gap: 20 }}>
-          {trail.map((node, i) => (
-            <TrailNodeView
-              key={node.item.id}
-              node={node}
-              offset={ZIGZAG_OFFSETS[i % ZIGZAG_OFFSETS.length]}
-              color={meta.color}
-              dark={meta.dark}
-              onPress={() => openLesson(node)}
-            />
-          ))}
-        </View>
-      )}
-
-      {isDone ? (
-        <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
+        {error ? (
           <Text
             style={{
-              fontFamily: fonts.bodyBold,
-              fontSize: 16,
-              color: colors['success-dark'],
+              fontFamily: fonts.body,
+              color: colors['danger-dark'],
               textAlign: 'center',
+              marginTop: 20,
             }}
           >
-            Sequência de hoje concluída ✓
+            {error}
           </Text>
-        </View>
-      ) : (
-        <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
-          <PushButton
-            label="Continuar sequência"
-            onPress={() =>
-              activeSlug && router.push({ pathname: '/leitura', params: { law: activeSlug } })
-            }
-            disabled={trail.length === 0}
-          />
-        </View>
-      )}
-    </ScrollView>
-  );
-}
+        ) : null}
 
-function Stat({ value, color, suffix }: { value: number; color: string; suffix: string }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-      <Text style={{ fontFamily: fonts.displayBold, fontSize: 16, color }}>{value}</Text>
-      <Text style={{ fontFamily: fonts.bodySemi, fontSize: 12, color: colors.muted }}>{suffix}</Text>
+        {/* Trilha zigzag */}
+        {sequenceLoading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+        ) : trail.length === 0 ? (
+          <Text
+            style={{
+              fontFamily: fonts.body,
+              color: colors.muted,
+              textAlign: 'center',
+              marginTop: 40,
+              paddingHorizontal: 40,
+            }}
+          >
+            Nenhuma sequência para hoje nesta lei.
+          </Text>
+        ) : (
+          <View style={{ alignItems: 'center', marginTop: 32, gap: 20 }}>
+            {trail.map((node, i) => (
+              <TrailNodeView
+                key={node.item.id}
+                node={node}
+                offset={ZIGZAG_OFFSETS[i % ZIGZAG_OFFSETS.length]}
+                color={meta.color}
+                dark={meta.dark}
+                onPress={() => openLesson(node)}
+              />
+            ))}
+          </View>
+        )}
+
+        {isDone ? (
+          <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
+            <Text
+              style={{
+                fontFamily: fonts.bodyBold,
+                fontSize: 16,
+                color: colors['success-dark'],
+                textAlign: 'center',
+              }}
+            >
+              Sequência de hoje concluída ✓
+            </Text>
+          </View>
+        ) : (
+          <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
+            <PushButton
+              label="Continuar sequência"
+              onPress={() =>
+                activeSlug && router.push({ pathname: '/leitura', params: { law: activeSlug } })
+              }
+              disabled={trail.length === 0}
+            />
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -339,6 +329,7 @@ function TrailNodeView({
 
   return (
     <View style={{ transform: [{ translateX: offset }], alignItems: 'center' }}>
+      {node.status === 'current' ? <PulseRing size={72} color={color} /> : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={node.label}
