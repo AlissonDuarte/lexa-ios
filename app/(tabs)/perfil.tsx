@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../src/api/client';
 import type { Achievement, Gamification } from '../../src/api/types';
 import { useAuth } from '../../src/auth/AuthContext';
+import { DeleteAccountSheet } from '../../src/components/DeleteAccountSheet';
 import { GameTopBar } from '../../src/components/GameTopBar';
 import { Mascot } from '../../src/components/Mascot';
 import { Pressed } from '../../src/components/Pressed';
@@ -124,6 +125,7 @@ export default function Perfil() {
   const [refreshing, setRefreshing] = useState(false);
   const [savingPrivacy, setSavingPrivacy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDeleteSheet, setShowDeleteSheet] = useState(false);
 
   const load = useCallback(async () => {
     // Um provedor fora do ar nao pode levar o outro junto: o perfil ainda
@@ -607,7 +609,42 @@ export default function Perfil() {
         ) : null}
 
         <PushButton label="Sair" variant="ghost" onPress={() => void signOut()} />
+
+        <Pressed
+          onPress={() => setShowDeleteSheet(true)}
+          accessibilityLabel="Excluir conta"
+          style={(held) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderWidth: 2,
+            borderBottomWidth: held ? 2 : 4,
+            borderRadius: radius.lg,
+            padding: 16,
+          })}
+        >
+          <View
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              backgroundColor: colors.surface,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="trash-outline" size={18} color={colors['muted-soft']} />
+          </View>
+          <Text style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: 15, color: colors.muted }}>
+            Excluir conta
+          </Text>
+          <Ionicons name="chevron-forward" size={18} color={colors['muted-soft']} />
+        </Pressed>
       </ScrollView>
+
+      <DeleteAccountSheet visible={showDeleteSheet} onClose={() => setShowDeleteSheet(false)} />
     </View>
   );
 }

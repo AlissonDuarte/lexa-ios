@@ -184,6 +184,7 @@ export const api = {
   updatePrivacy: (perfil_privado: boolean) =>
     request<User>('/auth/me/privacy/', { method: 'PATCH', body: { perfil_privado } }),
   completeOnboarding: () => request<unknown>('/auth/me/onboard/', { method: 'POST' }),
+  deleteAccount: () => request<unknown>('/auth/me/', { method: 'DELETE' }),
 
   // Laws
   getLaws: () => request<Law[]>('/laws/'),

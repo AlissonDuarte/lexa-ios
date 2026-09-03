@@ -32,6 +32,7 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   signIn: (response: AuthResponse) => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   updateUser: (user: User) => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -58,6 +59,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await clearSession();
     // Sem isto o SDK do Google guarda a conta e o proximo toque no botao
     // reentra sem perguntar — ruim para quem deslogou para trocar de conta.
+    await signOutFromGoogle();
+    if (mounted.current) {
+      setState({ user: null, token: null, loading: false });
+    }
+  }, []);
+
+  const deleteAccount = useCallback(async () => {
+    // Chama o backend com o Bearer ainda valido — ele marca a conta como
+    // excluida e blacklista os refresh tokens emitidos. So depois disso
+    // limpamos localmente, na mesma sequencia do signOut.
+    await api.deleteAccount();
+    await unregisterFromPush();
+    setTokens(null, null);
+    await clearSession();
     await signOutFromGoogle();
     if (mounted.current) {
       setState({ user: null, token: null, loading: false });
@@ -126,8 +141,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, signIn, signOut, updateUser, refreshUser }),
-    [state, signIn, signOut, updateUser, refreshUser],
+    () => ({ ...state, signIn, signOut, deleteAccount, updateUser, refreshUser }),
+    [state, signIn, signOut, deleteAccount, updateUser, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
