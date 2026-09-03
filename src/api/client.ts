@@ -1,11 +1,12 @@
 /**
  * Client HTTP do Lexa — porte tipado de frontend/src/lib/api.js.
  *
- * Tres diferencas em relacao a web, todas deliberadas:
- *   1. Persiste e usa o refresh token (a web recebe e descarta).
- *   2. No 401 nao faz `window.location.href`; delega a um handler que o
+ * Duas diferencas em relacao a web, ambas deliberadas (o refresh token e
+ * persistido e renovado dos dois lados desde que o backend ligou
+ * ROTATE_REFRESH_TOKENS + BLACKLIST_AFTER_ROTATION):
+ *   1. No 401 nao faz `window.location.href`; delega a um handler que o
  *      AuthContext registra, para o expo-router navegar.
- *   3. Lanca ApiError (subclasse de Error) em vez de um objeto cru, mas
+ *   2. Lanca ApiError (subclasse de Error) em vez de um objeto cru, mas
  *      preservando `status` e `data` para os chamadores.
  */
 import { ApiError } from './types';
@@ -52,10 +53,17 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
   onUnauthorized = handler;
 }
 
-/** Callback para o AuthContext persistir o access renovado pelo refresh. */
-let onTokenRefreshed: ((access: string) => void) | null = null;
+/**
+ * Callback para o AuthContext persistir o que o refresh renovou. `refresh` e
+ * `null` quando o backend nao rotaciona (nao e o caso hoje: o backend roda
+ * ROTATE_REFRESH_TOKENS, entao um novo refresh sempre volta e precisa ser
+ * salvo — o anterior e blacklistado no servidor assim que este e emitido).
+ */
+let onTokenRefreshed: ((access: string, refresh: string | null) => void) | null = null;
 
-export function setTokenRefreshedHandler(handler: ((access: string) => void) | null): void {
+export function setTokenRefreshedHandler(
+  handler: ((access: string, refresh: string | null) => void) | null,
+): void {
   onTokenRefreshed = handler;
 }
 
@@ -80,11 +88,12 @@ async function refreshAccessToken(): Promise<string | null> {
       });
       if (!response.ok) return null;
 
-      const data = (await response.json()) as { access?: string };
+      const data = (await response.json()) as { access?: string; refresh?: string };
       if (!data?.access) return null;
 
       accessToken = data.access;
-      onTokenRefreshed?.(data.access);
+      if (data.refresh) refreshToken = data.refresh;
+      onTokenRefreshed?.(data.access, data.refresh ?? null);
       return data.access;
     } catch {
       // Falha de rede nao deve deslogar: o chamador trata como 401 comum.

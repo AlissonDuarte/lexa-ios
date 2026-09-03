@@ -1,10 +1,8 @@
 /**
- * Persistencia de sessao.
- *
- * Diferenca deliberada em relacao a web (frontend/src/lib/stores/auth.js), que
- * guarda so `lexa_token` em localStorage e joga fora o refresh: aqui o refresh
- * e persistido. Com ACCESS_TOKEN_LIFETIME de 7 dias, um app nativo sem refresh
- * forcaria re-login toda semana.
+ * Persistencia de sessao. O refresh token e persistido (a web tambem faz isso
+ * hoje, em localStorage) — com ACCESS_TOKEN_LIFETIME curto (60min) e refresh
+ * rotacionado a cada uso, sem persistir o refresh o usuario cairia pro login
+ * na primeira renovacao apos fechar o app.
  *
  * Tokens vao no SecureStore (Keychain no iOS, Keystore no Android); o objeto
  * user, que nao e segredo, vai no AsyncStorage — o SecureStore tem limite

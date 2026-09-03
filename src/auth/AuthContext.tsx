@@ -96,8 +96,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUnauthorizedHandler(() => {
       void signOut();
     });
-    setTokenRefreshedHandler((access) => {
-      void saveTokens(access, null);
+    setTokenRefreshedHandler((access, refresh) => {
+      void saveTokens(access, refresh);
       if (mounted.current) {
         setState((s) => ({ ...s, token: access }));
       }
